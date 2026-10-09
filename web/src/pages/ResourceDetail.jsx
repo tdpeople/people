@@ -27,7 +27,7 @@ export default function ResourceDetail() {
   const isEmp = r.kind === 'DIPENDENTE';
   const cats = checklist.map((c) => ({ value: c.category, label: c.label }));
 
-  const generate = async (kind) => { try { const res = await api.post(`/resources/${id}/documents/generate`, { kind }); toast(`${DOC_LABEL[kind]} generato (v${res.version})${res.has_pdf ? ', PDF pronto' : ', solo DOCX'}`); d.reload(); } catch (e2) { toast(e2.message, 'err'); } };
+  const generate = async (kind) => { try { const res = await api.post(`/resources/${id}/documents/generate`, { kind }); toast(`${DOC_LABEL[kind]} generato (v${res.version})${res.has_pdf ? ', PDF pronto' : ', solo DOCX'}${(res.missing || []).length ? ` · ${res.missing.length} segnaposto da completare` : ''}`); d.reload(); } catch (e2) { toast(e2.message, 'err'); } };
   const archive = async (doc) => { try { await api.post(`/documents/${doc.id}/archive`, { category: doc.kind === 'MBO' ? 'MBO' : doc.kind === 'LETTERA_IMPEGNO' ? 'LETTERA_IMPEGNO' : 'CONTRATTO_FIRMATO', signed: false }); toast('Archiviato nel dossier'); d.reload(); } catch (e2) { toast(e2.message, 'err'); } };
   const setStatus = async (status) => { await api.put(`/resources/${id}`, { status, terminated_at: status === 'CESSATO' ? new Date().toISOString().slice(0, 10) : null }); d.reload(); };
 
@@ -175,7 +175,7 @@ export default function ResourceDetail() {
               <thead><tr><th>Documento</th><th>Versione</th><th>Generato</th><th className="num">Azioni</th></tr></thead>
               <tbody>{documents.map((doc) => (
                 <tr key={doc.id}>
-                  <td><Badge tone="teal">{DOC_LABEL[doc.kind]}</Badge> <span className="strong">{doc.title}</span></td>
+                  <td><Badge tone="teal">{DOC_LABEL[doc.kind]}</Badge> <span className="strong">{doc.title}</span>{(doc.missing || []).length > 0 && <div className="small" style={{ color: '#9a5b00', marginTop: 4 }} title={doc.missing.join(', ')}>Con segnaposto da completare: {doc.missing.slice(0, 4).join(', ').toLowerCase()}{doc.missing.length > 4 ? ` e altri ${doc.missing.length - 4}` : ''}</div>}</td>
                   <td>v{doc.version}</td>
                   <td className="small muted">{itDateTime(doc.generated_at)}<br />{doc.generated_by_name}</td>
                   <td className="num">

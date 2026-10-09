@@ -5,7 +5,7 @@ import { one, many, q } from '../db.js';
 import { ah, bad, notFound, audit, parse } from '../lib/util.js';
 import { requireWrite, requireRole } from '../lib/access.js';
 import { renderDocx, docxToPdf, pdfAvailable } from '../lib/docgen.js';
-import { contractData, mboData, commitmentData, lpData, fullName } from '../lib/docdata.js';
+import { missingFields, contractData, mboData, commitmentData, lpData, fullName } from '../lib/docdata.js';
 import { getSettings } from '../lib/payroll.js';
 
 const r = Router();
@@ -38,6 +38,8 @@ export async function generateDocument({ req, resourceId, kind, refId = null, le
     if (!letter) throw notFound('Lettera di impegno non trovata');
     data = commitmentData({ resource, letter, settings: S });
   } else throw bad('Tipo documento non valido');
+  const missing = missingFields(data);
+  data._missing = missing;
   const docx = renderDocx(kind, data);
   let pdf = null;
   if (await pdfAvailable()) {
@@ -46,8 +48,8 @@ export async function generateDocument({ req, resourceId, kind, refId = null, le
   const ver = (await one('SELECT coalesce(max(version),0)+1 AS v FROM generated_documents WHERE resource_id=$1 AND kind=$2 AND coalesce(ref_id,0)=coalesce($3,0)', [resourceId, kind, refId])).v;
   const row = await one(`INSERT INTO generated_documents (resource_id, kind, ref_id, version, title, docx, pdf, data, generated_by)
     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id, version`, [resourceId, kind, refId, ver, TITLES[kind](resource), docx, pdf, JSON.stringify(data), req.user.id]);
-  await audit(req, 'DOCUMENT_GENERATE', 'document', row.id, { resource_id: resourceId, kind, version: ver });
-  return { id: row.id, version: ver, has_pdf: Boolean(pdf) };
+  await audit(req, 'DOCUMENT_GENERATE', 'document', row.id, { resource_id: resourceId, kind, version: ver, missing });
+  return { id: row.id, version: ver, has_pdf: Boolean(pdf), missing };
 }
 
 r.post('/resources/:id/documents/generate', requireWrite, ah(async (req, res) => {

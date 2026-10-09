@@ -121,7 +121,7 @@ export function EmploymentForm({ value: v, onChange, letter = false, sites = [] 
         <Field label="Tipologia contratto"><select value={v.contract_type || 'TIND'} onChange={(e) => s('contract_type', e.target.value)}>{Object.entries(CONTRACT).filter(([k]) => !letter || k !== 'DIRIGENTE').map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></Field>
         <Field label="Livello di ingresso"><select value={v.level || ''} onChange={(e) => s('level', e.target.value)}><option value="">–</option>{LEVELS.map((l) => <option key={l} value={l}>{LEVEL_LABEL[l]}</option>)}</select></Field>
         <Field label="Qualifica"><input value={v.qualification || ''} placeholder={v.level === 'Q' ? 'Quadro' : 'Impiegato'} onChange={(e) => s('qualification', e.target.value)} /></Field>
-        <Field label="Mansione *" className="span2"><input value={v.job_title || ''} onChange={(e) => s('job_title', e.target.value)} required /></Field>
+        <Field label="Mansione" className="span2"><input value={v.job_title || ''} onChange={(e) => s('job_title', e.target.value)} /></Field>
         <Field label={letter ? 'Decorrenza: non oltre il' : 'Decorrenza (data assunzione)'}><input type="date" value={(letter ? v.start_by : v.start_date) || ''} onChange={(e) => s(letter ? 'start_by' : 'start_date', e.target.value)} /></Field>
         {letter && <Field label="Validità della proposta sino al"><input type="date" value={v.valid_until || ''} onChange={(e) => s('valid_until', e.target.value)} /></Field>}
         {!letter && (v.contract_type === 'TDET' || v.contract_type === 'APPRENDISTATO') && <Field label={v.contract_type === 'APPRENDISTATO' ? 'Fine periodo formativo' : 'Scadenza contratto'}><input type="date" value={v.end_date || ''} onChange={(e) => s('end_date', e.target.value)} /></Field>}
@@ -203,7 +203,7 @@ export function LpForm({ value: v, onChange }) {
   return (
     <>
       <div className="form-grid">
-        <Field label="Disciplina *"><input value={v.discipline || ''} placeholder="es. Anatomia Patologica, Infermieristica, Medicina del Lavoro" onChange={(e) => s('discipline', e.target.value)} required /></Field>
+        <Field label="Disciplina"><input value={v.discipline || ''} placeholder="es. Anatomia Patologica, Infermieristica, Medicina del Lavoro" onChange={(e) => s('discipline', e.target.value)} /></Field>
         <Field label="Oggetto della prestazione" className="span2" help="Compare nel contratto dopo 'Oggetto della prestazione professionale sarà …'"><input value={v.role_description || ''} placeholder="la consulenza sanitaria negli ambiti per cui il Professionista è abilitato" onChange={(e) => s('role_description', e.target.value)} /></Field>
         <Field label="Inizio incarico"><input type="date" value={v.start_date || ''} onChange={(e) => s('start_date', e.target.value)} /></Field>
         <Field label="Scadenza incarico"><input type="date" value={v.end_date || ''} onChange={(e) => s('end_date', e.target.value)} /></Field>

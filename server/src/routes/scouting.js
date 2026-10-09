@@ -113,7 +113,7 @@ r.get('/letters', ah(async (req, res) => {
 r.get('/letters/:id', ah(async (req, res) => {
   const l = await one(`SELECT c.*, r.last_name, r.first_name, r.tax_code, r.email, r.phone, r.area_id, r.manager_id, r.birth_place, r.birth_date, r.sex, r.status AS resource_status FROM commitment_letters c JOIN resources r ON r.id=c.resource_id WHERE c.id=$1`, [Number(req.params.id)]);
   if (!l) throw notFound();
-  l.documents = await many('SELECT id, version, title, generated_at, (pdf IS NOT NULL) AS has_pdf FROM generated_documents WHERE kind=\'LETTERA_IMPEGNO\' AND ref_id=$1 ORDER BY version DESC', [l.id]);
+  l.documents = await many('SELECT id, version, title, generated_at, (pdf IS NOT NULL) AS has_pdf, coalesce(data->\'_missing\', \'[]\'::jsonb) AS missing FROM generated_documents WHERE kind=\'LETTERA_IMPEGNO\' AND ref_id=$1 ORDER BY version DESC', [l.id]);
   res.json(l);
 }));
 

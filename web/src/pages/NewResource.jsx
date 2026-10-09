@@ -92,7 +92,15 @@ export default function NewResource({ letterMode = false }) {
   const uploadCv = async (id) => { const fd = new FormData(); fd.append('file', cvFile); fd.append('category', 'CV'); fd.append('set_cv', 'true'); await api.upload(`/resources/${id}/attachments`, fd); };
 
   const personOk = person.last_name && person.first_name;
-  const dataOk = isLp ? Boolean(lp.discipline) : path === 'LETTERA' ? Boolean(letter.job_title && letter.ral) : Boolean(emp.job_title && emp.ral && emp.start_date);
+  const dataOk = true; // i dati contrattuali possono restare incompleti: nel documento compaiono come segnaposto [CAMPO]
+  const missingList = (() => {
+    const m = [];
+    if (!person.birth_place) m.push('luogo di nascita'); if (!person.birth_date) m.push('data di nascita'); if (!person.tax_code) m.push('codice fiscale'); if (!person.address || !person.city) m.push('indirizzo di residenza');
+    if (isLp) { if (!lp.discipline) m.push('disciplina'); if (!person.vat_number) m.push('partita IVA'); if (!lp.order_name) m.push('ordine'); if (!lp.order_number) m.push('numero di iscrizione'); if (!lp.start_date) m.push('data di inizio'); if (!(lp.fees || []).some((f) => f.description)) m.push('compensi'); }
+    else if (path === 'LETTERA') { if (!letter.job_title) m.push('mansione'); if (!letter.level) m.push('livello'); if (!letter.ral) m.push('RAL'); if (!letter.start_by) m.push('decorrenza massima'); }
+    else { if (!emp.job_title) m.push('mansione'); if (!emp.level) m.push('livello'); if (!emp.ral) m.push('RAL'); if (!emp.start_date) m.push('data di assunzione'); if (!emp.probation) m.push('periodo di prova'); }
+    return m;
+  })();
 
   return (
     <div className="page">
@@ -155,6 +163,7 @@ export default function NewResource({ letterMode = false }) {
                   : <p>{emp.job_title} · {LEVEL_LABEL[emp.level] || emp.level}<br />RAL {eur(emp.ral)} su {emp.monthly_payments} mensilità{(emp.ral_steps || []).filter((s) => s.from).map((s) => ` → ${eur(s.ral)} dal ${itDate(s.from)}`)}<br />dal {itDate(emp.start_date)} · {emp.weekly_hours} ore · prova: {emp.probation}{emp.mbo_enabled ? ` · MBO ${emp.mbo_pct}%` : ''}</p>}
             </div>
           </div>
+          {missingList.length > 0 && <div className="alert" style={{ marginTop: 12, display: 'block', background: '#fff6e5', border: '1px solid #f0d9a8', color: '#7a4a00', borderRadius: 10, padding: '10px 14px' }}>Dati non inseriti: {missingList.join(', ')}. Puoi salvare comunque: nel DOCX e nel PDF compariranno come segnaposto tra parentesi quadre (es. [CODICE FISCALE]) da completare in Word o rigenerando il documento dopo aver completato la scheda.</div>}
           <label className="f inline" style={{ marginTop: 10 }}><input type="checkbox" checked={generate} onChange={(e) => setGenerate(e.target.checked)} /> Genera subito i documenti (DOCX e PDF) sui format aziendali{!isLp && path === 'CONTRATTO' && emp.mbo_enabled ? ': contratto e piano MBO' : ''}</label>
           <div className="row end" style={{ marginTop: 16 }}><button className="btn ghost" onClick={() => setStep(step - 1)}>Indietro</button><button className="btn lg" disabled={busy} onClick={save}>{busy ? 'Salvataggio…' : 'Salva e genera'}</button></div>
         </Card>

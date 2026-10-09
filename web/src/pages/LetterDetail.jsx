@@ -21,7 +21,7 @@ export default function LetterDetail() {
   if (!d.data) return <div className="page"><Loading /></div>;
   const l = d.data;
   const setStatus = async (status) => { try { await api.put(`/scouting/letters/${id}`, { status }); toast('Stato aggiornato'); d.reload(); } catch (e) { toast(e.message, 'err'); } };
-  const generate = async () => { try { const r = await api.post(`/scouting/letters/${id}/generate`); toast(`Lettera generata (v${r.version})`); d.reload(); } catch (e) { toast(e.message, 'err'); } };
+  const generate = async () => { try { const r = await api.post(`/scouting/letters/${id}/generate`); toast(`Lettera generata (v${r.version})${(r.missing || []).length ? ` · ${r.missing.length} segnaposto da completare` : ''}`); d.reload(); } catch (e) { toast(e.message, 'err'); } };
   const save = async () => {
     const body = { ...edit }; for (const k of Object.keys(body)) if (body[k] === '') body[k] = null;
     body.ral_steps = (body.ral_steps || []).filter((s) => s.from && s.ral);
@@ -71,7 +71,7 @@ export default function LetterDetail() {
         <Card title="Documenti generati" flush>
           {!l.documents.length ? <Empty>Nessun documento generato: usa "Genera DOCX e PDF".</Empty> : (
             <table className="t"><thead><tr><th>Versione</th><th>Generato</th><th className="num">Azioni</th></tr></thead>
-              <tbody>{l.documents.map((doc) => <tr key={doc.id}><td className="strong">v{doc.version}</td><td className="small muted">{itDateTime(doc.generated_at)}</td><td className="num">{doc.has_pdf && <button className="btn sm ghost" onClick={() => setPreview(doc)}>Anteprima</button>} {doc.has_pdf && <a className="btn sm ghost" href={`/api/documents/${doc.id}/download?format=pdf`}>PDF</a>} <a className="btn sm ghost" href={`/api/documents/${doc.id}/download?format=docx`}>DOCX</a></td></tr>)}</tbody></table>
+              <tbody>{l.documents.map((doc) => <tr key={doc.id}><td className="strong">v{doc.version}{(doc.missing || []).length > 0 && <div className="small" style={{ color: '#9a5b00', fontWeight: 400 }}>segnaposto: {doc.missing.join(', ').toLowerCase()}</div>}</td><td className="small muted">{itDateTime(doc.generated_at)}</td><td className="num">{doc.has_pdf && <button className="btn sm ghost" onClick={() => setPreview(doc)}>Anteprima</button>} {doc.has_pdf && <a className="btn sm ghost" href={`/api/documents/${doc.id}/download?format=pdf`}>PDF</a>} <a className="btn sm ghost" href={`/api/documents/${doc.id}/download?format=docx`}>DOCX</a></td></tr>)}</tbody></table>
           )}
         </Card>
       </div>

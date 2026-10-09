@@ -190,7 +190,7 @@ r.get('/:id', ah(async (req, res) => {
   const employment = await one('SELECT * FROM employments WHERE resource_id=$1', [id]);
   const lp = await one('SELECT * FROM lp_contracts WHERE resource_id=$1', [id]);
   const letters = await many('SELECT * FROM commitment_letters WHERE resource_id=$1 ORDER BY created_at DESC', [id]);
-  const documents = await many('SELECT g.id, g.kind, g.ref_id, g.version, g.title, g.generated_at, (g.pdf IS NOT NULL) AS has_pdf, u.full_name AS generated_by_name FROM generated_documents g LEFT JOIN users u ON u.id=g.generated_by WHERE g.resource_id=$1 ORDER BY g.generated_at DESC', [id]);
+  const documents = await many('SELECT g.id, g.kind, g.ref_id, g.version, g.title, g.generated_at, (g.pdf IS NOT NULL) AS has_pdf, coalesce(g.data->\'_missing\', \'[]\'::jsonb) AS missing, u.full_name AS generated_by_name FROM generated_documents g LEFT JOIN users u ON u.id=g.generated_by WHERE g.resource_id=$1 ORDER BY g.generated_at DESC', [id]);
   const attachments = await many('SELECT a.id, a.category, a.filename, a.mime, a.size, a.issued_at, a.expires_at, a.signed, a.notes, a.uploaded_at, u.full_name AS uploaded_by_name FROM attachments a LEFT JOIN users u ON u.id=a.uploaded_by WHERE a.resource_id=$1 ORDER BY a.category, a.uploaded_at DESC', [id]);
   const deadlines = await computeDeadlines({ resourceId: id });
   const checklist = await missingDocuments(id, row.kind);
