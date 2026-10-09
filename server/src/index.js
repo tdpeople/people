@@ -26,10 +26,12 @@ app.set('trust proxy', 1);
 
 // Dominio canonico: richieste su altri host (es. td-contracts.onrender.com) reindirizzate a contracts.toscanadiagnostica.it
 const canonicalHost = (() => { try { const u = new URL(config.baseUrl); return /localhost|127\.0\.0\.1/.test(u.hostname) ? null : u.host; } catch { return null; } })();
+// Il redirect è temporaneo (302, mai memorizzato dal browser) e non scatta dall'host tecnico *.onrender.com,
+// così l'app resta raggiungibile anche prima che il DNS del dominio ufficiale sia attivo.
 if (canonicalHost) {
   app.use((req, res, next) => {
-    if (req.path === '/api/health' || req.hostname === canonicalHost) return next();
-    res.redirect(301, `https://${canonicalHost}${req.originalUrl}`);
+    if (req.path === '/api/health' || req.hostname === canonicalHost || /\.onrender\.com$/i.test(req.hostname) || process.env.CANONICAL_REDIRECT === 'false') return next();
+    res.redirect(302, `https://${canonicalHost}${req.originalUrl}`);
   });
 }
 app.disable('x-powered-by');
