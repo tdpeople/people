@@ -200,7 +200,8 @@ r.get('/:id', ah(async (req, res) => {
     payroll = { minimum: m, decomposition: decompose(employment.ral, employment.monthly_payments, employment.base_pay ?? m?.amount ?? null, Number(S.function_allowance_share || 0.7)) };
   }
   if (req.user.role === 'VIEWER' && employment) { for (const k of ['ral', 'base_pay', 'superminimo', 'function_allowance', 'ral_steps', 'mbo_pct']) delete employment[k]; }
-  res.json({ resource: res_, employment, lp, letters, documents, attachments, deadlines, checklist, payroll, category_labels: CATEGORY_LABELS });
+  const org_units = await many(`SELECT u.id, u.name, u.role_title, u.kind FROM org_units u WHERE u.resource_id=$1 OR (u.resource_id IS NULL AND lower(coalesce(u.head_name,''))=lower($2)) ORDER BY u.sort_order`, [id, `${row.first_name} ${row.last_name}`]);
+  res.json({ resource: res_, employment, lp, letters, documents, attachments, deadlines, checklist, payroll, org_units, category_labels: CATEGORY_LABELS });
 }));
 
 r.post('/', requireWrite, ah(async (req, res) => {

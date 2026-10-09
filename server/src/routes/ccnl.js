@@ -14,7 +14,7 @@ r.get('/', ah(async (_req, res) => {
   const levels = await many('SELECT * FROM ccnl_levels ORDER BY sort_order');
   const mins = await many('SELECT * FROM ccnl_minimums ORDER BY valid_from');
   const sections = await many('SELECT * FROM ccnl_sections ORDER BY sort_order');
-  const documents = await many('SELECT d.id, d.title, d.filename, d.mime, d.size, d.uploaded_at, u.full_name AS uploaded_by_name FROM ccnl_documents d LEFT JOIN users u ON u.id=d.uploaded_by ORDER BY d.uploaded_at DESC');
+  const documents = await many("SELECT d.id, d.title, d.filename, d.mime, d.size, d.uploaded_at, u.full_name AS uploaded_by_name FROM ccnl_documents d LEFT JOIN users u ON u.id=d.uploaded_by WHERE d.scope='CCNL' ORDER BY d.uploaded_at DESC");
   const dates = [...new Set(mins.map((m) => m.valid_from))].sort();
   const table = levels.map((l) => ({ ...l, minimums: Object.fromEntries(mins.filter((m) => m.level_id === l.id).map((m) => [m.valid_from, { amount: m.amount, enac: m.enac }])) }));
   const S = await getSettings();

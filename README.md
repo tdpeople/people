@@ -6,6 +6,8 @@ Webapp per la gestione, elaborazione e archiviazione dei contratti di lavoro del
 
 Inserimento nuova risorsa: percorso guidato. Si sceglie dipendente o libero professionista; per il dipendente, lettera di impegno o contratto di assunzione. Il contratto verifica in automatico se esiste una lettera di impegno accettata e ne recupera tutti i dati (anagrafica, livello, mansione, RAL e scatti, decorrenza). Al salvataggio l'app genera i documenti sui format aziendali in DOCX e PDF: lettera di assunzione (tempo indeterminato o determinato, con scomposizione paga base, superminimo e indennità di funzione, scatti di RAL con decorrenza, benefit, clausola MBO), piano MBO (schema Top Management con tabella obiettivi e pesi), lettera di impegno, contratto di prestazione professionale (titoli, ordine, massimale RC, allegato 1 dichiarazione di non incompatibilità, allegato 2 tariffario con compensi fissi, a ore, a prestazione e variabili sul fatturato). Ogni generazione è versionata e archiviabile nel dossier; il DOCX resta modificabile a mano.
 
+Organigramma (prima voce del menu): struttura da TD-SGI-IDL007 Allegato 1 con viste Direzione, Laboratorio di Analisi, Network Punti Prelievo, Diagnostic Center e organigramma completo; posizioni di staff (C-level, Direttore Sanitario, manager di supporto), sedi da assegnare, nomi collegati automaticamente all'anagrafica (per risorsa o per omonimia), riporti diretti per responsabile, modifica di ogni unità (nome, tipo, responsabile, dipendenza, note), vista "Linee di riporto" ricavata dal campo Responsabile delle schede, allineamento dei responsabili all'organigramma (admin), PDF ufficiale consultabile e aggiornabile, stampa.
+
 Dashboard: risorse attive, sesso, età media, costo annuo e mensile per l'azienda, monte RAL, MBO massimo, organico per area, tipologia contrattuale, livello e disciplina, andamento mensile, scadenze in evidenza, dossier incompleti. Ogni numero e ogni barra è cliccabile e apre l'elenco delle persone del gruppo, da cui si apre la scheda.
 
 Elenco delle risorse (tutte, solo dipendenti, solo LP) con etichetta Dipendente/LP, ricerca, filtri, ordinamento, export Excel dei costi. Scheda della risorsa: anagrafica, rapporto di lavoro o incarico, retribuzione e costo azienda, completezza del dossier rispetto alla checklist documentale, dossier con allegati (categoria, data di rilascio, scadenza, firmato), anteprima PDF e immagini, documenti generati, scadenze, lettere di impegno.
@@ -81,4 +83,5 @@ Tutte sotto /api, sessione via cookie, header `X-Requested-With: td-contracts` s
 - scouting/cv (upload, analyze, download), scouting/letters (CRUD, generate), scouting/letters-accepted
 - ccnl (tabelle, sections, minimums, documents, simulate)
 - stats/summary, stats/deadlines, stats/costs.xlsx
+- org (albero, units CRUD, align-managers, documents)
 - import/pack

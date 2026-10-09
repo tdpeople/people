@@ -16,6 +16,7 @@ import resourceRoutes from './routes/resources.js';
 import documentRoutes from './routes/documents.js';
 import scoutingRoutes from './routes/scouting.js';
 import ccnlRoutes from './routes/ccnl.js';
+import orgRoutes from './routes/org.js';
 import statsRoutes from './routes/stats.js';
 import importRoutes from './routes/imports.js';
 
@@ -78,6 +79,7 @@ app.use('/api/resources', resourceRoutes);
 app.use('/api', documentRoutes);
 app.use('/api/scouting', scoutingRoutes);
 app.use('/api/ccnl', ccnlRoutes);
+app.use('/api/org', orgRoutes);
 app.use('/api/stats', statsRoutes);
 app.use('/api/import', importRoutes);
 app.use('/api', (_req, _res, next) => next(new HttpError(404, 'Endpoint inesistente')));

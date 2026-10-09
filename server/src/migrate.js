@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import bcrypt from 'bcryptjs';
 import { pool, one, q } from './db.js';
 import { config } from './config.js';
-import { CCNL_LEVELS, CCNL_SECTIONS, DOSSIER_REQUIREMENTS, AREAS, WORK_SITES, DEFAULT_SETTINGS } from './lib/seedData.js';
+import { CCNL_LEVELS, CCNL_SECTIONS, DOSSIER_REQUIREMENTS, AREAS, WORK_SITES, DEFAULT_SETTINGS, ORG_UNITS } from './lib/seedData.js';
 
 const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), 'migrations');
 
@@ -59,6 +59,26 @@ async function seed() {
   // Sezioni di sintesi del CCNL (solo al primo avvio: poi sono modificabili)
   if ((await one('SELECT count(*)::int AS n FROM ccnl_sections')).n === 0) {
     for (const [i, s] of CCNL_SECTIONS.entries()) await q('INSERT INTO ccnl_sections(title, body, sort_order) VALUES ($1,$2,$3)', [s.title, s.body, (i + 1) * 10]);
+  }
+  // Organigramma (solo al primo avvio: poi è modificabile dall'app)
+  if ((await one('SELECT count(*)::int AS n FROM org_units')).n === 0) {
+    const insert = async (u, parentId, order) => {
+      const area = u.area ? (await one('SELECT id FROM areas WHERE lower(name)=lower($1)', [u.area]))?.id || null : null;
+      const row = await one('INSERT INTO org_units(parent_id, kind, name, role_title, head_name, area_id, tbd, notes, sort_order) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id',
+        [parentId, u.kind || 'FUNZIONE', u.name, u.role_title || null, u.head_name || null, area, Boolean(u.tbd), u.notes || null, order]);
+      for (const [i, c] of (u.children || []).entries()) await insert(c, row.id, (i + 1) * 10);
+    };
+    await insert(ORG_UNITS, null, 10);
+  }
+  // Organigramma ufficiale (PDF da TD-SGI-IDL007_01 Allegato 1), solo se non presente
+  if ((await one("SELECT count(*)::int AS n FROM ccnl_documents WHERE scope='ORG'")).n === 0) {
+    const assetDir = path.join(path.dirname(fileURLToPath(import.meta.url)), 'assets');
+    const name = 'TD-SGI-IDL007_01 - Allegato 1 - Organigramma Toscana Diagnostica.pdf';
+    const file = path.join(assetDir, name);
+    if (fs.existsSync(file)) {
+      const buf = fs.readFileSync(file);
+      await q("INSERT INTO ccnl_documents(scope, title, filename, mime, size, data) VALUES ('ORG',$1,$2,'application/pdf',$3,$4)", ['TD-SGI-IDL007_01 - Allegato 1 - Organigramma Toscana Diagnostica (agg. 22/09/2026)', name, buf.length, buf]);
+    }
   }
   // Checklist dossier
   for (const r of DOSSIER_REQUIREMENTS) {

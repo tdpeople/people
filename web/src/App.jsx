@@ -6,6 +6,7 @@ import { ROLE } from './format.js';
 import Login from './pages/Login.jsx';
 import Onboarding from './pages/Onboarding.jsx';
 import Dashboard from './pages/Dashboard.jsx';
+import Organigramma from './pages/Organigramma.jsx';
 import NewResource from './pages/NewResource.jsx';
 import Resources from './pages/Resources.jsx';
 import ResourceDetail from './pages/ResourceDetail.jsx';
@@ -38,6 +39,7 @@ function Shell() {
         <div className="brand"><img src="/logo-light.svg" alt="Toscana Diagnostica" /><div className="app">Contracts · People</div></div>
         <nav>
           {writer && <L to="/risorse/nuova" icon="plus">Inserimento nuova risorsa</L>}
+          <L to="/organigramma" icon="building">Organigramma</L>
           <L to="/" icon="home" end>Dashboard</L>
           <L to="/risorse" icon="users" end>Elenco delle risorse</L>
           <L to="/scadenze" icon="calendar" count={soon}>Calendario scadenze</L>
@@ -73,6 +75,7 @@ function Shell() {
         <div className="topbar"><button onClick={() => setOpen(!open)} aria-label="Menu">☰</button><img src="/logo-light.svg" alt="" /></div>
         <Routes>
           <Route path="/" element={<Dashboard />} />
+          <Route path="/organigramma" element={<Organigramma />} />
           {writer && <Route path="/risorse/nuova" element={<NewResource />} />}
           <Route path="/risorse" element={<Resources />} />
           <Route path="/risorse/:id" element={<ResourceDetail />} />

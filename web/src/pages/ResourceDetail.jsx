@@ -63,6 +63,7 @@ export default function ResourceDetail() {
             <Row k="Indirizzo" v={[r.address, r.zip, r.city, r.province ? `(${r.province})` : ''].filter(Boolean).join(' ')} />
             <Row k="Area" v={r.area_name} />
             <Row k="Responsabile" v={r.manager_id ? <Link to={`/risorse/${r.manager_id}`}>{r.manager_name}</Link> : null} />
+            {(d.data.org_units || []).length > 0 && <Row k="Nell'organigramma" v={<Link to="/organigramma">{d.data.org_units.map((u) => `${u.role_title || 'Responsabile'} · ${u.name}`).join('; ')}</Link>} />}
             <Row k="Ingresso" v={itDate(r.hired_at)} />
             <Row k="Cessazione" v={itDate(r.terminated_at)} />
             {r.cv_attachment_id && <Row k="CV" v={<a href={`/api/resources/${id}/attachments/${r.cv_attachment_id}/download?inline=1`} target="_blank" rel="noreferrer">Apri CV</a>} />}
