@@ -9,17 +9,17 @@ export const AREAS = [ // dall'organigramma TD-SGI-IDL007_01 Allegato 1: [nome, 
   ['Retail & Communications Management', 'Direzione Generale'],
   ['HSQ Management', 'Direzione Generale'],
   ['Direzione Sanitaria', 'Direzione Generale'],
-  ['Laboratorio di Analisi', null],
+  ['Laboratorio di Analisi', 'Direzione Generale'],
   ['Direzione Tecnica', 'Laboratorio di Analisi'],
-  ['Lab Operations', 'Laboratorio di Analisi'],
+  ['Lab Operations Management', 'Laboratorio di Analisi'],
   ['Preanalitica', 'Laboratorio di Analisi'],
   ['Core Lab', 'Laboratorio di Analisi'],
   ['Microbiologia', 'Laboratorio di Analisi'],
   ['Biologia Molecolare', 'Laboratorio di Analisi'],
   ['Anatomia Patologica', 'Laboratorio di Analisi'],
-  ['Network Punti Prelievo', null],
-  ['B2B', null],
-  ['Diagnostic Center', null],
+  ['Network Punti Prelievo', 'Direzione Generale'],
+  ['B2B', 'Direzione Generale'],
+  ['Diagnostic Center', 'Direzione Generale'],
 ];
 
 export const WORK_SITES = [
@@ -156,7 +156,7 @@ export const ORG_UNITS = {
     { name: 'Laboratorio di Analisi', role_title: 'Responsabile Laboratorio di Analisi', head_name: 'Valentina Zezza', kind: 'LINEA', area: 'Laboratorio di Analisi', children: [
       { name: 'Direzione Tecnica', role_title: 'Direttore Tecnico', head_name: 'Maria Teresa Balzano', kind: 'FUNZIONE', area: 'Direzione Tecnica', children: [
         DS('Gian Luigi Taddei'),
-        { name: 'Lab Operations', role_title: 'Lab Operations Manager', head_name: 'Sara Arrighetti', kind: 'STAFF', area: 'Lab Operations' },
+        { name: 'Lab Operations Management', role_title: 'Lab Operations Manager', head_name: 'Sara Arrighetti', kind: 'STAFF', area: 'Lab Operations Management' },
         { name: 'Preanalitica', role_title: 'Responsabile Preanalitica', head_name: 'Sara Arrighetti', kind: 'FUNZIONE', area: 'Preanalitica' },
         { name: 'Core Lab', role_title: 'Responsabile Core Lab', head_name: 'Antonia Esposito', kind: 'FUNZIONE', area: 'Core Lab' },
         { name: 'Microbiologia', role_title: 'Responsabile Microbiologia', head_name: 'Chiara Chilleri', kind: 'FUNZIONE', area: 'Microbiologia' },

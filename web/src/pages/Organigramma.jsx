@@ -54,7 +54,7 @@ function PersonNode({ p, byManager, depth, maxDepth }) {
   return (
     <li>
       <div className={`org-node ${dir ? 'k-DIREZIONE' : p.kind === 'LP' ? 'k-SEDE' : 'k-FUNZIONE'}`}>
-        <div className="unit">{p.area_name || (p.kind === 'LP' ? 'Libero professionista' : 'Dipendente')}</div>
+        <div className="unit">{p.area_name || (p.kind === 'LP' ? 'Libero professionista' : 'Dipendente')}{p.extra_areas ? ` + ${p.extra_areas}` : ''}</div>
         <div className="head"><Link to={`/risorse/${p.id}`}>{p.first_name} {p.last_name}</Link></div>
         {p.job_title && <div className="role">{p.job_title}</div>}
         <div className="meta">
@@ -76,7 +76,7 @@ function ReportNode({ p, byManager }) {
     <li>
       <div className="p">
         <Link to={`/risorse/${p.id}`} className="strong">{p.last_name} {p.first_name}</Link>
-        <span className="small muted">{p.job_title || '–'}{p.area_name ? ` · ${p.area_name}` : ''}</span>
+        <span className="small muted">{p.job_title || '–'}{p.area_name ? ` · ${p.area_name}` : ''}{p.extra_areas ? ` + ${p.extra_areas}` : ''}</span>
         <Badge tone={KIND[p.kind]?.tone}>{KIND[p.kind]?.label || p.kind}</Badge>
         {kids.length > 0 && <Badge>{kids.length}</Badge>}
       </div>

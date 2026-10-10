@@ -60,7 +60,9 @@ r.get('/summary', ah(async (req, res) => {
     year: new Date().getFullYear(),
     leaving: active.filter((x) => x.terminated_at).length,
   };
-  const byArea = group(active, (x) => x.area_root || x.area_name);
+  // raggruppa per unità di 2° livello (direzione/linea); le aree di 3° livello confluiscono nella loro linea
+  for (const x of active) x.area_group = x.area_path ? (x.area_path.split(' › ')[1] || x.area_path) : x.area_name;
+  const byArea = group(active, (x) => x.area_group);
   const byContract = group(active, (x) => (x.kind === 'LP' ? 'LP' : x.contract_type || 'TIND'), (k) => ({ TIND: 'Tempo indeterminato', TDET: 'Tempo determinato', APPRENDISTATO: 'Apprendistato', DIRIGENTE: 'Dirigente', LP: 'Libero professionista' }[k] || k));
   const byLevel = group(active.filter((x) => x.kind === 'DIPENDENTE'), (x) => x.level || 'n.d.', (k) => (k === 'Q' ? 'Quadro' : `Livello ${k}`));
   const byDiscipline = group(active.filter((x) => x.kind === 'LP'), (x) => x.discipline || 'n.d.');

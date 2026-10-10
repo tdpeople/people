@@ -28,7 +28,7 @@ export default function Dashboard() {
   const openDrill = (title, filter) => setDrill({ title, people: people.filter(filter) });
   const dimData = (d[dim] || []).map((g) => ({ ...g, label: g.label || g.key, value: metric === 'count' ? g.count : g.cost_annual }));
   const dimDef = DIMS.find((x) => x.key === dim);
-  const groupKey = (p) => (dim === 'by_contract' ? (p.kind === 'LP' ? 'LP' : p.contract_type || 'TIND') : dim === 'by_level' ? (p.level || 'n.d.') : dim === 'by_discipline' ? (p.discipline || 'n.d.') : (p.area_name || 'Non assegnata'));
+  const groupKey = (p) => (dim === 'by_contract' ? (p.kind === 'LP' ? 'LP' : p.contract_type || 'TIND') : dim === 'by_level' ? (p.level || 'n.d.') : dim === 'by_discipline' ? (p.discipline || 'n.d.') : (p.area_group || p.area_name || 'Non assegnata'));
   const pct = (v) => (t.total ? Math.round((v / t.total) * 100) : 0);
 
   return (

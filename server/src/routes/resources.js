@@ -179,7 +179,9 @@ const LIST_SQL = `SELECT r.*, a.name AS area_name, at.path AS area_path, at.root
     e.contract_type, e.level, e.job_title, e.ral, e.ral_steps, e.monthly_payments, e.weekly_hours, e.start_date AS emp_start, e.probation_end, e.mbo_enabled, e.mbo_pct, e.mbo_amount, e.cost_coefficient, e.end_date AS emp_end,
     l.discipline, l.start_date AS lp_start, l.end_date AS lp_end, l.est_monthly_cost, l.insurance_expiry,
     (SELECT count(*)::int FROM attachments t WHERE t.resource_id=r.id) AS attachments_count,
-    (SELECT count(*)::int FROM generated_documents g WHERE g.resource_id=r.id) AS documents_count
+    (SELECT count(*)::int FROM generated_documents g WHERE g.resource_id=r.id) AS documents_count,
+    (SELECT coalesce(json_agg(json_build_object('id', x.id, 'name', x.name, 'path', x.path, 'root_name', x.root_name) ORDER BY x.sort_path), '[]'::json)
+       FROM resource_areas ra JOIN areas_tree x ON x.id=ra.area_id WHERE ra.resource_id=r.id AND ra.area_id IS DISTINCT FROM r.area_id) AS extra_areas
   FROM resources r
   LEFT JOIN areas a ON a.id=r.area_id
   LEFT JOIN areas_tree at ON at.id=r.area_id
@@ -195,7 +197,7 @@ r.get('/', ah(async (req, res) => {
   if (req.query.kind) w.push(`r.kind = ${P.add(req.query.kind)}`);
   if (req.query.status) w.push(`r.status = ANY(string_to_array(${P.add(req.query.status)}, ','))`);
   else w.push(`r.status <> 'CANDIDATO'`);
-  if (req.query.area_id) { const pid = P.add(Number(req.query.area_id)); w.push(`r.area_id IN (WITH RECURSIVE d AS (SELECT id FROM areas WHERE id = ${pid} UNION ALL SELECT a.id FROM areas a JOIN d ON a.parent_id = d.id) SELECT id FROM d)`); }
+  if (req.query.area_id) { const pid = P.add(Number(req.query.area_id)); w.push(`EXISTS (WITH RECURSIVE d AS (SELECT id FROM areas WHERE id = ${pid} UNION ALL SELECT a.id FROM areas a JOIN d ON a.parent_id = d.id) SELECT 1 FROM d WHERE d.id = r.area_id OR d.id IN (SELECT area_id FROM resource_areas WHERE resource_id = r.id))`); }
   if (req.query.sex) w.push(`r.sex = ${P.add(req.query.sex)}`);
   if (req.query.q) w.push(`(r.last_name || ' ' || r.first_name || ' ' || coalesce(r.first_name,'') || ' ' || coalesce(r.tax_code,'') || ' ' || coalesce(e.job_title,'') || ' ' || coalesce(l.discipline,'')) ILIKE ${P.add(`%${req.query.q}%`)}`);
   const rows = await many(`${LIST_SQL} WHERE ${w.join(' AND ')} ORDER BY r.last_name, r.first_name`, P.values);
@@ -238,7 +240,9 @@ r.post('/parse-document', requireWrite, upload.single('file'), ah(async (req, re
 }));
 
 r.post('/', requireWrite, ah(async (req, res) => {
-  const person = parse(personSchema, req.body.person || {});
+  const { extra_area_ids: extraNew, ...personIn } = req.body.person || {};
+  const person = parse(personSchema, personIn);
+  const extraIds = Array.isArray(extraNew) ? [...new Set(extraNew.map(Number).filter((n) => Number.isInteger(n) && n > 0 && n !== person.area_id))] : [];
   const employment = person.kind === 'DIPENDENTE' && req.body.employment ? parse(employmentSchema, req.body.employment) : null;
   const lp = person.kind === 'LP' && req.body.lp ? parse(lpSchema, req.body.lp) : null;
   const id = await tx(async (c) => {
@@ -246,6 +250,7 @@ r.post('/', requireWrite, ah(async (req, res) => {
     const row = (await c.query(`INSERT INTO resources (${cols.join(',')}, created_by) VALUES (${cols.map((_, i) => `$${i + 1}`).join(',')}, $${cols.length + 1}) RETURNING id`, [...cols.map((k) => person[k]), req.user.id])).rows[0];
     if (employment) { await upsertEmployment(c, row.id, employment); if (employment.start_date && !person.hired_at) await c.query('UPDATE resources SET hired_at=$2 WHERE id=$1', [row.id, employment.start_date]); }
     if (lp) { await upsertLp(c, row.id, lp); if (lp.start_date && !person.hired_at) await c.query('UPDATE resources SET hired_at=$2 WHERE id=$1', [row.id, lp.start_date]); }
+    for (const aid of extraIds) await c.query('INSERT INTO resource_areas(resource_id, area_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [row.id, aid]);
     return row.id;
   });
   await audit(req, 'RESOURCE_CREATE', 'resource', id, { kind: person.kind, name: `${person.last_name} ${person.first_name}` });
@@ -254,10 +259,18 @@ r.post('/', requireWrite, ah(async (req, res) => {
 
 r.put('/:id', requireWrite, ah(async (req, res) => {
   const id = Number(req.params.id);
-  const { job_title: role, ...rest } = req.body || {};
+  const { job_title: role, extra_area_ids: extra, ...rest } = req.body || {};
   const d = parse(personSchema.partial(), rest);
   const cols = Object.keys(d);
   if (cols.length) await q(`UPDATE resources SET ${cols.map((c, i) => `${c}=$${i + 2}`).join(', ')}, updated_at=now() WHERE id=$1`, [id, ...cols.map((c) => d[c])]);
+  // Doppie funzioni: aree aggiuntive oltre a quella principale
+  if (Array.isArray(extra)) {
+    const ids = [...new Set(extra.map(Number).filter((n) => Number.isInteger(n) && n > 0))];
+    const primary = d.area_id !== undefined ? d.area_id : (await one('SELECT area_id FROM resources WHERE id=$1', [id]))?.area_id;
+    await q('DELETE FROM resource_areas WHERE resource_id=$1', [id]);
+    for (const aid of ids) if (aid !== primary) await q('INSERT INTO resource_areas(resource_id, area_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [id, aid]);
+    d.extra_area_ids = ids;
+  }
   // Ruolo: mansione del dipendente (employments.job_title) o disciplina del professionista (lp_contracts.discipline)
   if (role !== undefined) {
     const val = role === null || String(role).trim() === '' ? null : String(role).trim().slice(0, 160);

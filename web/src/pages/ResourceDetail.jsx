@@ -36,7 +36,7 @@ export default function ResourceDetail() {
     <div className="page">
       <div className="page-head">
         <div>
-          <div className="row" style={{ gap: 8 }}><KindBadge kind={r.kind} /><StatusBadge status={r.status} />{r.area_name && <Badge tone="grey" title={r.area_path}>{r.area_name}</Badge>}</div>
+          <div className="row" style={{ gap: 8 }}><KindBadge kind={r.kind} /><StatusBadge status={r.status} />{r.area_name && <Badge tone="grey" title={r.area_path}>{r.area_name}</Badge>}{(r.extra_areas || []).map((x) => <Badge key={x.id} tone="grey" title={x.path}>{x.name}</Badge>)}</div>
           <h1 style={{ marginTop: 6 }}>{r.title ? `${r.title} ` : ''}{r.first_name} {r.last_name}</h1>
           <div className="sub">{isEmp ? `${r.job_title || 'Mansione n.d.'}${r.level ? ` · ${LEVEL_LABEL[r.level] || r.level}` : ''}${r.contract_type ? ` · ${CONTRACT[r.contract_type]}` : ''}` : `${r.discipline || 'Disciplina n.d.'} · libero professionista`}{r.manager_name ? ` · riporta a ${r.manager_name}` : ''}</div>
         </div>
@@ -63,7 +63,7 @@ export default function ResourceDetail() {
             <Row k="Telefono" v={r.phone} />
             <Row k="Email" v={r.email} />
             <Row k="Indirizzo" v={[r.address, r.zip, r.city, r.province ? `(${r.province})` : ''].filter(Boolean).join(' ')} />
-            <Row k="Area" v={r.area_path || r.area_name} />
+            <Row k="Area" v={r.area_path || r.area_name} />{(r.extra_areas || []).length > 0 && <Row k="Altre funzioni" v={r.extra_areas.map((x) => x.path).join(" | ")} />}
             <Row k="Riporta a" v={r.manager_id ? <Link to={`/risorse/${r.manager_id}`}>{r.manager_name}</Link> : null} />
             <Row k="Approva ferie e permessi" v={r.approver_id ? <Link to={`/risorse/${r.approver_id}`}>{r.approver_name}</Link> : r.manager_id ? <span>{r.manager_name} <span className="small muted">(responsabile)</span></span> : null} />
             {(d.data.org_units || []).length > 0 && <Row k="Nell'organigramma" v={<Link to="/organigramma">{d.data.org_units.map((u) => `${u.role_title || 'Responsabile'} · ${u.name}`).join('; ')}</Link>} />}
@@ -236,11 +236,11 @@ export default function ResourceDetail() {
 }
 
 function EditPerson({ r, onClose, onSaved }) {
-  const [v, setV] = useState({ ...r, job_title: r.kind === 'LP' ? (r.discipline || '') : (r.job_title || ''), birth_date: r.birth_date ? String(r.birth_date).slice(0, 10) : '', hired_at: r.hired_at ? String(r.hired_at).slice(0, 10) : '' });
+  const [v, setV] = useState({ ...r, extra_area_ids: (r.extra_areas || []).map((x) => x.id), job_title: r.kind === 'LP' ? (r.discipline || '') : (r.job_title || ''), birth_date: r.birth_date ? String(r.birth_date).slice(0, 10) : '', hired_at: r.hired_at ? String(r.hired_at).slice(0, 10) : '' });
   const [err, setErr] = useState(null);
   const save = async () => {
     setErr(null);
-    const keys = ['last_name', 'first_name', 'sex', 'title', 'birth_place', 'birth_date', 'tax_code', 'vat_number', 'phone', 'email', 'address', 'zip', 'city', 'province', 'area_id', 'manager_id', 'approver_id', 'notes', 'hired_at', 'job_title'];
+    const keys = ['last_name', 'first_name', 'sex', 'title', 'birth_place', 'birth_date', 'tax_code', 'vat_number', 'phone', 'email', 'address', 'zip', 'city', 'province', 'area_id', 'manager_id', 'approver_id', 'notes', 'hired_at', 'job_title', 'extra_area_ids'];
     const body = Object.fromEntries(keys.map((k) => [k, v[k] === '' ? null : v[k]]));
     try { await api.put(`/resources/${r.id}`, body); onSaved(); } catch (e) { setErr(e); }
   };

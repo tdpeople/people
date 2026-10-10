@@ -47,7 +47,7 @@ export default function Resources({ kind }) {
               <tr key={r.id} className="click" onClick={() => nav(`/risorse/${r.id}`)}>
                 <td><div className="strong">{r.last_name} {r.first_name}</div><div className="small muted">{r.tax_code || ''}{r.sex ? ` · ${SEX[r.sex]}` : ''}</div></td>
                 <td><KindBadge kind={r.kind} /> {r.status !== 'ATTIVO' && <StatusBadge status={r.status} />}</td>
-                <td title={r.area_path || ''}>{r.area_path ? <span>{r.area_root !== r.area_name && <span className="muted small">{r.area_path.slice(0, r.area_path.lastIndexOf(' › ') + 3)}</span>}{r.area_name}</span> : <span className="muted">–</span>}</td>
+                <td title={[r.area_path, ...(r.extra_areas || []).map((x) => x.path)].filter(Boolean).join(' | ')}>{r.area_path ? <span>{r.area_root !== r.area_name && <span className="muted small">{r.area_path.slice(0, r.area_path.lastIndexOf(' › ') + 3)}</span>}{r.area_name}{(r.extra_areas || []).length > 0 && <span className="muted small"> + {r.extra_areas.map((x) => x.name).join(', ')}</span>}</span> : <span className="muted">–</span>}</td>
                 <td>{r.kind === 'DIPENDENTE' ? <>{r.job_title || '–'}<div className="small muted">{r.level ? LEVEL_LABEL[r.level] || r.level : ''}{r.contract_type && r.contract_type !== 'TIND' ? ` · ${CONTRACT[r.contract_type]}` : ''}</div></> : <>{r.discipline || '–'}<div className="small muted">{r.lp_end ? `incarico fino al ${itDate(r.lp_end)}` : ''}</div></>}</td>
                 <td>{r.manager_name || <span className="muted">–</span>}</td>
                 <td>{itDate(r.hired_at) || <span className="muted">–</span>}</td>

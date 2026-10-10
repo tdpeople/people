@@ -52,7 +52,8 @@ r.get('/', ah(async (_req, res) => {
   // Linee di riporto effettive, ricavate dal campo "responsabile" delle risorse
   const people = await many(`SELECT r.id, r.kind, r.status, r.first_name, r.last_name, r.manager_id, r.approver_id, a.name AS area_name,
       coalesce(e.job_title, l.discipline) AS job_title, e.contract_type, e.level,
-      ap.first_name || ' ' || ap.last_name AS approver_name
+      ap.first_name || ' ' || ap.last_name AS approver_name,
+      (SELECT string_agg(x.name, ', ' ORDER BY x.name) FROM resource_areas ra JOIN areas x ON x.id=ra.area_id WHERE ra.resource_id=r.id AND ra.area_id IS DISTINCT FROM r.area_id) AS extra_areas
     FROM resources r LEFT JOIN areas a ON a.id=r.area_id LEFT JOIN employments e ON e.resource_id=r.id LEFT JOIN lp_contracts l ON l.resource_id=r.id
     LEFT JOIN resources ap ON ap.id=r.approver_id
     WHERE r.status IN ('ATTIVO','IMPEGNO') ORDER BY r.last_name, r.first_name`);

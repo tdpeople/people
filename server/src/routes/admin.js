@@ -77,7 +77,7 @@ r.put('/settings', requireRole('ADMIN'), ah(async (req, res) => {
 
 // ---------------- Aree e sedi ----------------
 r.get('/areas', ah(async (_req, res) => res.json(await many(`SELECT a.*, t.path, t.root_id, t.root_name,
-  (SELECT count(*)::int FROM resources r WHERE r.area_id=a.id AND r.status IN ('ATTIVO','IMPEGNO')) AS headcount,
+  (SELECT count(*)::int FROM resources r WHERE r.status IN ('ATTIVO','IMPEGNO') AND (r.area_id=a.id OR r.id IN (SELECT resource_id FROM resource_areas WHERE area_id=a.id))) AS headcount,
   (SELECT count(*)::int FROM areas c WHERE c.parent_id=a.id) AS children
   FROM areas a JOIN areas_tree t ON t.id=a.id ORDER BY t.sort_path, a.name`))));
 r.post('/areas', requireWrite, ah(async (req, res) => {
@@ -92,7 +92,7 @@ r.delete('/areas/:id', requireRole('ADMIN'), ah(async (req, res) => {
   const id = Number(req.params.id);
   const a = await one('SELECT name FROM areas WHERE id=$1', [id]);
   if (!a) throw notFound();
-  const n = (await one('SELECT count(*)::int AS n FROM resources WHERE area_id=$1', [id])).n;
+  const n = (await one('SELECT count(*)::int AS n FROM resources WHERE area_id=$1 OR id IN (SELECT resource_id FROM resource_areas WHERE area_id=$1)', [id])).n;
   if (n > 0) throw bad(`L'area "${a.name}" ha ${n} risors${n === 1 ? 'a' : 'e'} assegnat${n === 1 ? 'a' : 'e'}: spostale in un'altra area prima di eliminarla`);
   const c = (await one('SELECT count(*)::int AS n FROM areas WHERE parent_id=$1', [id])).n;
   if (c > 0) throw bad(`L'area "${a.name}" ha ${c} aree di livello inferiore: eliminale o spostale prima`);

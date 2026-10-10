@@ -53,6 +53,30 @@ export function AreaSelects({ areas, value, onChange }) {
   </>);
 }
 
+/** Doppie funzioni: aree aggiuntive oltre a quella principale. */
+export function ExtraAreas({ areas, primary, value, onChange }) {
+  const [adding, setAdding] = useState(false);
+  const [pick, setPick] = useState(null);
+  const byId = Object.fromEntries(areas.map((a) => [a.id, a]));
+  const ids = (value || []).filter((id) => id !== primary && byId[id]);
+  const add = () => { if (pick && pick !== primary && !ids.includes(pick)) onChange([...ids, pick]); setPick(null); setAdding(false); };
+  return (
+    <div className="f span2" style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 12, fontWeight: 650, color: 'var(--muted)' }}>
+      <span>Altre funzioni (doppia rispondenza)</span>
+      <div className="row" style={{ gap: 8, flexWrap: 'wrap', alignItems: 'center', minHeight: 32 }}>
+        {ids.length === 0 && !adding && <span className="small muted" style={{ fontWeight: 400 }}>nessuna</span>}
+        {ids.map((id) => <span key={id} className="badge b-grey" title={byId[id].path}>{byId[id].name}<button type="button" className="btn sm link" title="Rimuovi" style={{ marginLeft: 4, fontSize: 14, lineHeight: 1 }} onClick={() => onChange(ids.filter((x) => x !== id))}>×</button></span>)}
+        {!adding && <button type="button" className="btn sm ghost" onClick={() => setAdding(true)}>Aggiungi funzione</button>}
+      </div>
+      {adding && <div className="form-grid" style={{ marginTop: 4, padding: 10, border: '1px solid var(--line)', borderRadius: 10 }}>
+        <AreaSelects areas={areas} value={pick} onChange={setPick} />
+        <div className="row" style={{ gap: 6, alignItems: 'flex-end' }}><button type="button" className="btn sm" disabled={!pick || pick === primary} onClick={add}>Conferma</button><button type="button" className="btn sm ghost" onClick={() => { setAdding(false); setPick(null); }}>Annulla</button></div>
+      </div>}
+      <span className="help">Per chi guida o opera in più aree: l'area scelta sopra resta quella principale</span>
+    </div>
+  );
+}
+
 export function PersonForm({ value: v, onChange, kind }) {
   const s = set(v, onChange);
   const areas = useApi('/areas');
@@ -80,6 +104,7 @@ export function PersonForm({ value: v, onChange, kind }) {
       <Field label="Città"><input value={v.city || ''} onChange={(e) => s('city', e.target.value)} /></Field>
       <Field label="Provincia"><input value={v.province || ''} maxLength={2} onChange={(e) => s('province', e.target.value.toUpperCase())} /></Field>
       <AreaSelects areas={areas.data || []} value={v.area_id} onChange={(id) => s('area_id', id)} />
+      <ExtraAreas areas={areas.data || []} primary={v.area_id} value={v.extra_area_ids || []} onChange={(ids) => s('extra_area_ids', ids)} />
       <Field label="Riporta a (responsabile gerarchico)" help="Definisce l'organigramma delle persone"><select value={v.manager_id || ''} onChange={(e) => s('manager_id', e.target.value ? Number(e.target.value) : null)}><option value="">–</option>{(people.data || []).filter((p) => p.id !== v.id).map((p) => <option key={p.id} value={p.id}>{p.last_name} {p.first_name}</option>)}</select></Field>
       <Field label="Approva ferie, permessi e richieste" help="Vuoto = il responsabile gerarchico"><select value={v.approver_id || ''} onChange={(e) => s('approver_id', e.target.value ? Number(e.target.value) : null)}><option value="">come il responsabile</option>{(people.data || []).filter((p) => p.id !== v.id).map((p) => <option key={p.id} value={p.id}>{p.last_name} {p.first_name}</option>)}</select></Field>
       <Field label="Note" className="span2"><textarea value={v.notes || ''} onChange={(e) => s('notes', e.target.value)} /></Field>
