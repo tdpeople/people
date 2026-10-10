@@ -204,7 +204,7 @@ export default function Organigramma() {
             <Field label="Responsabile (risorsa in anagrafica)" help="Prevale sul nome libero. Lascia vuoto per persone non ancora censite.">
               <select value={edit.resource_id || ''} onChange={(e) => setEdit({ ...edit, resource_id: e.target.value })}>
                 <option value="">–</option>
-                {(people.data || []).map((p) => <option key={p.id} value={p.id}>{p.last_name} {p.first_name} · {KIND[p.kind]?.label || p.kind}</option>)}
+                {(people.data || []).map((p) => <option key={p.id} value={p.id}>{p.last_name} {p.first_name}</option>)}
               </select>
             </Field>
             <Field label="Nome libero (se non in anagrafica)"><input value={edit.head_name || ''} onChange={(e) => setEdit({ ...edit, head_name: e.target.value })} /></Field>
