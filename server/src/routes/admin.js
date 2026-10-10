@@ -102,9 +102,30 @@ r.delete('/areas/:id', requireRole('ADMIN'), ah(async (req, res) => {
   res.json({ ok: true });
 }));
 r.put('/areas/:id', requireWrite, ah(async (req, res) => {
-  const d = parse(z.object({ name: z.string().min(2).max(120).optional(), sort_order: z.number().int().optional(), active: z.boolean().optional() }), req.body);
+  const id = Number(req.params.id);
+  const cur = await one('SELECT * FROM areas WHERE id=$1', [id]);
+  if (!cur) throw notFound();
+  const d = parse(z.object({ name: z.string().trim().min(2).max(120).optional(), sort_order: z.number().int().optional(), active: z.boolean().optional(), parent_id: z.number().int().nullable().optional() }), req.body);
+  if (d.parent_id !== undefined) {
+    // spostamento nella gerarchia: niente cicli, massimo tre livelli (contando anche i discendenti)
+    let newLevel = 1;
+    if (d.parent_id !== null) {
+      if (d.parent_id === id) throw bad('Un\'area non può dipendere da sé stessa');
+      const p = await one('SELECT id, level FROM areas WHERE id=$1', [d.parent_id]);
+      if (!p) throw bad('Area di livello superiore inesistente');
+      const desc = await many('WITH RECURSIVE t AS (SELECT id FROM areas WHERE parent_id=$1 UNION ALL SELECT a.id FROM areas a JOIN t ON a.parent_id=t.id) SELECT id FROM t', [id]);
+      if (desc.some((x) => x.id === d.parent_id)) throw bad('Spostamento non valido: l\'area scelta dipende già da questa');
+      newLevel = p.level + 1;
+    }
+    const depth = (await one('WITH RECURSIVE t AS (SELECT id, 1 AS d FROM areas WHERE id=$1 UNION ALL SELECT a.id, t.d+1 FROM areas a JOIN t ON a.parent_id=t.id) SELECT max(d)::int AS m FROM t', [id])).m;
+    if (newLevel + depth - 1 > 3) throw bad('Sono previsti al massimo tre livelli: le aree sotto a questa supererebbero il terzo');
+    await q('UPDATE areas SET parent_id=$2, level=$3 WHERE id=$1', [id, d.parent_id, newLevel]);
+    await q('WITH RECURSIVE t AS (SELECT id, level FROM areas WHERE id=$1 UNION ALL SELECT a.id, t.level+1 FROM areas a JOIN t ON a.parent_id=t.id) UPDATE areas x SET level=t.level FROM t WHERE x.id=t.id AND x.id<>$1', [id]);
+    delete d.parent_id;
+  }
   const cols = Object.keys(d);
-  if (cols.length) await q(`UPDATE areas SET ${cols.map((c, i) => `${c}=$${i + 2}`).join(', ')} WHERE id=$1`, [Number(req.params.id), ...cols.map((c) => d[c])]);
+  if (cols.length) await q(`UPDATE areas SET ${cols.map((c, i) => `${c}=$${i + 2}`).join(', ')} WHERE id=$1`, [id, ...cols.map((c) => d[c])]);
+  await audit(req, 'AREA_UPDATE', 'area', id, req.body);
   res.json({ ok: true });
 }));
 r.get('/work-sites', ah(async (_req, res) => res.json(await many('SELECT * FROM work_sites WHERE active ORDER BY id'))));
