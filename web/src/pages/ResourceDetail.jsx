@@ -62,7 +62,8 @@ export default function ResourceDetail() {
             <Row k="Email" v={r.email} />
             <Row k="Indirizzo" v={[r.address, r.zip, r.city, r.province ? `(${r.province})` : ''].filter(Boolean).join(' ')} />
             <Row k="Area" v={r.area_name} />
-            <Row k="Responsabile" v={r.manager_id ? <Link to={`/risorse/${r.manager_id}`}>{r.manager_name}</Link> : null} />
+            <Row k="Riporta a" v={r.manager_id ? <Link to={`/risorse/${r.manager_id}`}>{r.manager_name}</Link> : null} />
+            <Row k="Approva ferie e permessi" v={r.approver_id ? <Link to={`/risorse/${r.approver_id}`}>{r.approver_name}</Link> : r.manager_id ? <span>{r.manager_name} <span className="small muted">(responsabile)</span></span> : null} />
             {(d.data.org_units || []).length > 0 && <Row k="Nell'organigramma" v={<Link to="/organigramma">{d.data.org_units.map((u) => `${u.role_title || 'Responsabile'} · ${u.name}`).join('; ')}</Link>} />}
             <Row k="Ingresso" v={itDate(r.hired_at)} />
             <Row k="Cessazione" v={itDate(r.terminated_at)} />
@@ -233,7 +234,7 @@ function EditPerson({ r, onClose, onSaved }) {
   const [err, setErr] = useState(null);
   const save = async () => {
     setErr(null);
-    const keys = ['last_name', 'first_name', 'sex', 'title', 'birth_place', 'birth_date', 'tax_code', 'vat_number', 'phone', 'email', 'address', 'zip', 'city', 'province', 'area_id', 'manager_id', 'notes', 'hired_at'];
+    const keys = ['last_name', 'first_name', 'sex', 'title', 'birth_place', 'birth_date', 'tax_code', 'vat_number', 'phone', 'email', 'address', 'zip', 'city', 'province', 'area_id', 'manager_id', 'approver_id', 'notes', 'hired_at'];
     const body = Object.fromEntries(keys.map((k) => [k, v[k] === '' ? null : v[k]]));
     try { await api.put(`/resources/${r.id}`, body); onSaved(); } catch (e) { setErr(e); }
   };

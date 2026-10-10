@@ -47,6 +47,29 @@ function Node({ n, writer, admin, onEdit, onAdd, onDelete, depth, maxDepth }) {
   );
 }
 
+function PersonNode({ p, byManager, depth, maxDepth }) {
+  const kids = byManager[p.id] || [];
+  const show = maxDepth == null || depth < maxDepth ? kids : [];
+  const dir = p.contract_type === 'DIRIGENTE';
+  return (
+    <li>
+      <div className={`org-node ${dir ? 'k-DIREZIONE' : p.kind === 'LP' ? 'k-SEDE' : 'k-FUNZIONE'}`}>
+        <div className="unit">{p.area_name || (p.kind === 'LP' ? 'Libero professionista' : 'Dipendente')}</div>
+        <div className="head"><Link to={`/risorse/${p.id}`}>{p.first_name} {p.last_name}</Link></div>
+        {p.job_title && <div className="role">{p.job_title}</div>}
+        <div className="meta">
+          <Badge tone={KIND[p.kind]?.tone}>{KIND[p.kind]?.label || p.kind}</Badge>
+          {p.status === 'IMPEGNO' && <Badge tone="blue">in arrivo</Badge>}
+          {kids.length > 0 && <Badge>{kids.length} riporti</Badge>}
+          {p.approver_id && p.approver_id !== p.manager_id && <Badge tone="grey" >ferie: {p.approver_name}</Badge>}
+        </div>
+      </div>
+      {show.length > 0 && <ul>{show.map((k) => <PersonNode key={k.id} p={k} byManager={byManager} depth={depth + 1} maxDepth={maxDepth} />)}</ul>}
+      {!show.length && kids.length > 0 && <ul><li><div className="org-node tbd" style={{ width: 150, textAlign: 'center' }}><span className="small muted">+{kids.length} persone</span></div></li></ul>}
+    </li>
+  );
+}
+
 function ReportNode({ p, byManager }) {
   const kids = byManager[p.id] || [];
   return (
@@ -68,7 +91,8 @@ export default function Organigramma() {
   const d = useApi('/org');
   const areas = useApi('/areas');
   const people = useApi('/resources?status=ATTIVO,IMPEGNO');
-  const [view, setView] = useState('direzione');
+  const [view, setView] = useState('persone');
+  const [depthLimit, setDepthLimit] = useState(3);
   const [edit, setEdit] = useState(null);
   const [del, setDel] = useState(null);
   const [upload, setUpload] = useState(false);
@@ -79,7 +103,7 @@ export default function Organigramma() {
   if (!d.data) return <div className="page"><Loading /></div>;
   const root = d.data.tree[0];
   const lines = root ? root.children : [];
-  const tabs = [['direzione', 'Direzione'], ...lines.filter((l) => l.children.some((c) => c.kind !== 'STAFF')).map((l) => [`u${l.id}`, l.name]), ['completo', 'Organigramma completo'], ['riporti', 'Linee di riporto'], ['documento', `Documento ufficiale${d.data.documents.length ? '' : ' (assente)'}`]];
+  const tabs = [['persone', 'Persone e riporti'], ['direzione', 'Struttura SGI: Direzione'], ...lines.filter((l) => l.children.some((c) => c.kind !== 'STAFF')).map((l) => [`u${l.id}`, l.name]), ['completo', 'Struttura completa'], ['riporti', 'Elenco riporti'], ['documento', `Documento ufficiale${d.data.documents.length ? '' : ' (assente)'}`]];
   const current = view.startsWith('u') ? lines.find((l) => `u${l.id}` === view) : null;
   const byManager = {}; for (const p of d.data.reporting) (byManager[p.manager_id || 0] = byManager[p.manager_id || 0] || []).push(p);
   const topLevel = (byManager[0] || []);
@@ -133,6 +157,14 @@ export default function Organigramma() {
         </Card>
       )}
 
+      {view === 'persone' && (
+        <Card title={"Organigramma delle persone (dal campo \"Riporta a\" di ogni scheda)"} flush actions={<span className="row small muted">Livelli visibili <select value={depthLimit} onChange={(e) => setDepthLimit(Number(e.target.value))} style={{ width: 70, height: 30, padding: '0 6px' }}>{[1, 2, 3, 4, 6].map((n) => <option key={n} value={n}>{n}</option>)}</select></span>}>
+          <div className="org-wrap">
+            {!topLevel.length ? <Empty>Nessuna risorsa attiva.</Empty> : <ul className="org-tree">{topLevel.map((p) => <PersonNode key={p.id} p={p} byManager={byManager} depth={0} maxDepth={depthLimit} />)}</ul>}
+          </div>
+          <div className="bd small muted">Ogni persona compare sotto chi ha indicato come responsabile gerarchico nella scheda; chi non ha un responsabile è in cima. Il badge "ferie" segnala quando l'approvatore di ferie e permessi è diverso dal responsabile. {admin ? 'Con "Allinea responsabili" i responsabili delle unità SGI vengono riportati nelle schede.' : ''}</div>
+        </Card>
+      )}
       {view === 'riporti' && (
         <div className="grid g2">
           <Card title="Chi riporta a chi (dal campo Responsabile delle schede)">

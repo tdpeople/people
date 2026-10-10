@@ -37,6 +37,7 @@ export const personSchema = z.object({
   province: opt(z.string().max(4).transform((v) => v.toUpperCase())),
   area_id: num(),
   manager_id: num(),
+  approver_id: num(),
   notes: opt(z.string().max(4000)),
   hired_at: optDate(),
   terminated_at: optDate(),
@@ -166,7 +167,7 @@ async function enrich(rows, S) {
   });
 }
 
-const LIST_SQL = `SELECT r.*, a.name AS area_name, m.last_name || ' ' || m.first_name AS manager_name,
+const LIST_SQL = `SELECT r.*, a.name AS area_name, m.last_name || ' ' || m.first_name AS manager_name, ap.last_name || ' ' || ap.first_name AS approver_name,
     e.contract_type, e.level, e.job_title, e.ral, e.ral_steps, e.monthly_payments, e.weekly_hours, e.start_date AS emp_start, e.probation_end, e.mbo_enabled, e.mbo_pct, e.mbo_amount, e.cost_coefficient, e.end_date AS emp_end,
     l.discipline, l.start_date AS lp_start, l.end_date AS lp_end, l.est_monthly_cost, l.insurance_expiry,
     (SELECT count(*)::int FROM attachments t WHERE t.resource_id=r.id) AS attachments_count,
@@ -174,6 +175,7 @@ const LIST_SQL = `SELECT r.*, a.name AS area_name, m.last_name || ' ' || m.first
   FROM resources r
   LEFT JOIN areas a ON a.id=r.area_id
   LEFT JOIN resources m ON m.id=r.manager_id
+  LEFT JOIN resources ap ON ap.id=r.approver_id
   LEFT JOIN employments e ON e.resource_id=r.id
   LEFT JOIN lp_contracts l ON l.resource_id=r.id`;
 
@@ -284,6 +286,7 @@ r.delete('/:id', requireRole('ADMIN'), ah(async (req, res) => {
   const rsrc = await one('SELECT last_name, first_name FROM resources WHERE id=$1', [id]);
   if (!rsrc) throw notFound();
   await q('UPDATE resources SET manager_id=NULL WHERE manager_id=$1', [id]);
+  await q('UPDATE resources SET approver_id=NULL WHERE approver_id=$1', [id]);
   await q('DELETE FROM resources WHERE id=$1', [id]);
   await audit(req, 'RESOURCE_DELETE', 'resource', id, { name: `${rsrc.last_name} ${rsrc.first_name}`, reason });
   res.json({ ok: true });
