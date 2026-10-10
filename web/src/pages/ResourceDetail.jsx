@@ -236,15 +236,15 @@ export default function ResourceDetail() {
 }
 
 function EditPerson({ r, onClose, onSaved }) {
-  const [v, setV] = useState({ ...r, birth_date: r.birth_date ? String(r.birth_date).slice(0, 10) : '', hired_at: r.hired_at ? String(r.hired_at).slice(0, 10) : '' });
+  const [v, setV] = useState({ ...r, job_title: r.kind === 'LP' ? (r.discipline || '') : (r.job_title || ''), birth_date: r.birth_date ? String(r.birth_date).slice(0, 10) : '', hired_at: r.hired_at ? String(r.hired_at).slice(0, 10) : '' });
   const [err, setErr] = useState(null);
   const save = async () => {
     setErr(null);
-    const keys = ['last_name', 'first_name', 'sex', 'title', 'birth_place', 'birth_date', 'tax_code', 'vat_number', 'phone', 'email', 'address', 'zip', 'city', 'province', 'area_id', 'manager_id', 'approver_id', 'notes', 'hired_at'];
+    const keys = ['last_name', 'first_name', 'sex', 'title', 'birth_place', 'birth_date', 'tax_code', 'vat_number', 'phone', 'email', 'address', 'zip', 'city', 'province', 'area_id', 'manager_id', 'approver_id', 'notes', 'hired_at', 'job_title'];
     const body = Object.fromEntries(keys.map((k) => [k, v[k] === '' ? null : v[k]]));
     try { await api.put(`/resources/${r.id}`, body); onSaved(); } catch (e) { setErr(e); }
   };
-  return <Modal title="Modifica anagrafica" onClose={onClose} wide footer={<><button className="btn ghost" onClick={onClose}>Annulla</button><button className="btn" onClick={save}>Salva</button></>}><ErrorBox error={err} /><PersonForm value={v} onChange={setV} kind={r.kind} /><div className="form-grid" style={{ marginTop: 12 }}><Field label="Data di ingresso"><input type="date" value={v.hired_at || ''} onChange={(e) => setV({ ...v, hired_at: e.target.value })} /></Field></div></Modal>;
+  return <Modal title="Modifica anagrafica" onClose={onClose} wide footer={<><button className="btn ghost" onClick={onClose}>Annulla</button><button className="btn" onClick={save}>Salva</button></>}><ErrorBox error={err} /><PersonForm value={v} onChange={setV} kind={r.kind} /><div className="form-grid" style={{ marginTop: 12 }}><Field label="Ruolo" help={r.kind === 'LP' ? 'Disciplina del professionista (contratto LP)' : 'Mansione indicata nel contratto di assunzione'}><input value={v.job_title || ''} onChange={(e) => setV({ ...v, job_title: e.target.value })} /></Field><Field label="Data di ingresso"><input type="date" value={v.hired_at || ''} onChange={(e) => setV({ ...v, hired_at: e.target.value })} /></Field></div></Modal>;
 }
 
 function EditEmployment({ id, e, onClose, onSaved }) {

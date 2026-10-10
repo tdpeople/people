@@ -254,9 +254,25 @@ r.post('/', requireWrite, ah(async (req, res) => {
 
 r.put('/:id', requireWrite, ah(async (req, res) => {
   const id = Number(req.params.id);
-  const d = parse(personSchema.partial(), req.body);
+  const { job_title: role, ...rest } = req.body || {};
+  const d = parse(personSchema.partial(), rest);
   const cols = Object.keys(d);
   if (cols.length) await q(`UPDATE resources SET ${cols.map((c, i) => `${c}=$${i + 2}`).join(', ')}, updated_at=now() WHERE id=$1`, [id, ...cols.map((c) => d[c])]);
+  // Ruolo: mansione del dipendente (employments.job_title) o disciplina del professionista (lp_contracts.discipline)
+  if (role !== undefined) {
+    const val = role === null || String(role).trim() === '' ? null : String(role).trim().slice(0, 160);
+    const rsrc = await one('SELECT kind FROM resources WHERE id=$1', [id]);
+    if (rsrc?.kind === 'DIPENDENTE') {
+      const ex = await one('SELECT resource_id FROM employments WHERE resource_id=$1', [id]);
+      if (ex) await q('UPDATE employments SET job_title=$2, updated_at=now() WHERE resource_id=$1', [id, val]);
+      else if (val) await q('INSERT INTO employments(resource_id, job_title) VALUES ($1,$2)', [id, val]);
+    } else if (rsrc?.kind === 'LP') {
+      const ex = await one('SELECT resource_id FROM lp_contracts WHERE resource_id=$1', [id]);
+      if (ex) await q('UPDATE lp_contracts SET discipline=$2, updated_at=now() WHERE resource_id=$1', [id, val]);
+      else if (val) await q('INSERT INTO lp_contracts(resource_id, discipline) VALUES ($1,$2)', [id, val]);
+    }
+    d.job_title = val;
+  }
   await audit(req, 'RESOURCE_UPDATE', 'resource', id, d);
   res.json({ ok: true });
 }));
