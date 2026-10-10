@@ -1,5 +1,8 @@
 // Dati di base caricati al primo avvio (idempotenti)
 
+// Tecnostruttura (funzioni di staff): in alto nell'organigramma; le altre aree sono operative (pettine)
+export const STAFF_AREAS = ['Operations', 'Finance', 'Legal, People and Organization', 'Flow & Back Office Management', 'Retail & Communications Management', 'HSQ Management', 'Direzione Sanitaria', 'Lab Operations Management'];
+
 export const AREAS = [ // dall'organigramma TD-SGI-IDL007_01 Allegato 1: [nome, area di livello superiore]
   ['Direzione Generale', null],
   ['Operations', 'Direzione Generale'],
@@ -11,12 +14,12 @@ export const AREAS = [ // dall'organigramma TD-SGI-IDL007_01 Allegato 1: [nome, 
   ['Direzione Sanitaria', 'Direzione Generale'],
   ['Laboratorio di Analisi', 'Direzione Generale'],
   ['Direzione Tecnica', 'Laboratorio di Analisi'],
-  ['Lab Operations Management', 'Laboratorio di Analisi'],
-  ['Preanalitica', 'Laboratorio di Analisi'],
-  ['Core Lab', 'Laboratorio di Analisi'],
-  ['Microbiologia', 'Laboratorio di Analisi'],
-  ['Biologia Molecolare', 'Laboratorio di Analisi'],
-  ['Anatomia Patologica', 'Laboratorio di Analisi'],
+  ['Lab Operations Management', 'Direzione Tecnica'],
+  ['Preanalitica', 'Direzione Tecnica'],
+  ['Core Lab', 'Direzione Tecnica'],
+  ['Microbiologia', 'Direzione Tecnica'],
+  ['Biologia Molecolare', 'Direzione Tecnica'],
+  ['Anatomia Patologica', 'Direzione Tecnica'],
   ['Network Punti Prelievo', 'Direzione Generale'],
   ['B2B', 'Direzione Generale'],
   ['Diagnostic Center', 'Direzione Generale'],

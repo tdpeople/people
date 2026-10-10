@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import bcrypt from 'bcryptjs';
 import { pool, one, q } from './db.js';
 import { config } from './config.js';
-import { CCNL_LEVELS, CCNL_SECTIONS, DOSSIER_REQUIREMENTS, AREAS, WORK_SITES, DEFAULT_SETTINGS, ORG_UNITS } from './lib/seedData.js';
+import { CCNL_LEVELS, CCNL_SECTIONS, DOSSIER_REQUIREMENTS, AREAS, WORK_SITES, DEFAULT_SETTINGS, ORG_UNITS, STAFF_AREAS } from './lib/seedData.js';
 
 const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), 'migrations');
 
@@ -40,7 +40,7 @@ async function seed() {
   // Aree aziendali (tre livelli)
   for (const [i, [name, parentName]] of AREAS.entries()) {
     const parent = parentName ? await one('SELECT id, level FROM areas WHERE name=$1', [parentName]) : null;
-    await q('INSERT INTO areas(name, sort_order, parent_id, level) VALUES ($1,$2,$3,$4) ON CONFLICT (name) DO UPDATE SET parent_id=coalesce(areas.parent_id, EXCLUDED.parent_id), level=CASE WHEN areas.parent_id IS NULL AND EXCLUDED.parent_id IS NOT NULL THEN EXCLUDED.level ELSE areas.level END', [name, (i + 1) * 10, parent?.id || null, parent ? parent.level + 1 : 1]);
+    await q('INSERT INTO areas(name, sort_order, parent_id, level, kind) VALUES ($1,$2,$3,$4,$5) ON CONFLICT (name) DO UPDATE SET parent_id=coalesce(areas.parent_id, EXCLUDED.parent_id), level=CASE WHEN areas.parent_id IS NULL AND EXCLUDED.parent_id IS NOT NULL THEN EXCLUDED.level ELSE areas.level END', [name, (i + 1) * 10, parent?.id || null, parent ? parent.level + 1 : 1, STAFF_AREAS.includes(name) ? 'STAFF' : 'LINEA']);
   }
   // Sedi di lavoro
   if ((await one('SELECT count(*)::int AS n FROM work_sites')).n === 0) {

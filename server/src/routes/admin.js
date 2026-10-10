@@ -83,7 +83,7 @@ r.get('/areas', ah(async (_req, res) => res.json(await many(`SELECT a.*, t.path,
 r.post('/areas', requireWrite, ah(async (req, res) => {
   const d = parse(z.object({ name: z.string().min(2).max(120), sort_order: z.number().int().default(100), parent_id: z.number().int().nullable().optional(), kind: z.enum(['STAFF', 'LINEA']).default('LINEA') }), req.body);
   let level = 1;
-  if (d.parent_id) { const p = await one('SELECT level FROM areas WHERE id=$1', [d.parent_id]); if (!p) throw bad('Area di livello superiore inesistente'); if (p.level >= 3) throw bad('Sono previsti al massimo tre livelli'); level = p.level + 1; }
+  if (d.parent_id) { const p = await one('SELECT level FROM areas WHERE id=$1', [d.parent_id]); if (!p) throw bad('Area di livello superiore inesistente'); if (p.level >= 4) throw bad('Sono previsti al massimo quattro livelli'); level = p.level + 1; }
   const row = await one('INSERT INTO areas(name, sort_order, parent_id, level, kind) VALUES ($1,$2,$3,$4,$5) RETURNING *', [d.name, d.sort_order, d.parent_id || null, level, d.kind]);
   await audit(req, 'AREA_CREATE', 'area', row.id, d);
   res.status(201).json(row);
@@ -107,7 +107,7 @@ r.put('/areas/:id', requireWrite, ah(async (req, res) => {
   if (!cur) throw notFound();
   const d = parse(z.object({ name: z.string().trim().min(2).max(120).optional(), sort_order: z.number().int().optional(), active: z.boolean().optional(), parent_id: z.number().int().nullable().optional(), head_resource_id: z.number().int().nullable().optional(), kind: z.enum(['STAFF', 'LINEA']).optional() }), req.body);
   if (d.parent_id !== undefined) {
-    // spostamento nella gerarchia: niente cicli, massimo tre livelli (contando anche i discendenti)
+    // spostamento nella gerarchia: niente cicli, massimo quattro livelli (contando anche i discendenti)
     let newLevel = 1;
     if (d.parent_id !== null) {
       if (d.parent_id === id) throw bad('Un\'area non può dipendere da sé stessa');
@@ -118,7 +118,7 @@ r.put('/areas/:id', requireWrite, ah(async (req, res) => {
       newLevel = p.level + 1;
     }
     const depth = (await one('WITH RECURSIVE t AS (SELECT id, 1 AS d FROM areas WHERE id=$1 UNION ALL SELECT a.id, t.d+1 FROM areas a JOIN t ON a.parent_id=t.id) SELECT max(d)::int AS m FROM t', [id])).m;
-    if (newLevel + depth - 1 > 3) throw bad('Sono previsti al massimo tre livelli: le aree sotto a questa supererebbero il terzo');
+    if (newLevel + depth - 1 > 4) throw bad('Sono previsti al massimo quattro livelli: le aree sotto a questa supererebbero il quarto');
     await q('UPDATE areas SET parent_id=$2, level=$3 WHERE id=$1', [id, d.parent_id, newLevel]);
     await q('WITH RECURSIVE t AS (SELECT id, level FROM areas WHERE id=$1 UNION ALL SELECT a.id, t.level+1 FROM areas a JOIN t ON a.parent_id=t.id) UPDATE areas x SET level=t.level FROM t WHERE x.id=t.id AND x.id<>$1', [id]);
     delete d.parent_id;

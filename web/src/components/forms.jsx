@@ -37,20 +37,22 @@ export function RalStepsEditor({ value = [], onChange }) {
   );
 }
 
-/** Tre tendine a cascata (1°, 2°, 3° livello); salva l'area più profonda scelta. */
+/** Tendine a cascata per livello (fino a 4); salva l'area più profonda scelta. */
 export function AreaSelects({ areas, value, onChange }) {
+  const MAX = 4;
   const byId = Object.fromEntries(areas.map((a) => [a.id, a]));
   const chain = []; let cur = value ? byId[value] : null;
   while (cur) { chain.unshift(cur); cur = cur.parent_id ? byId[cur.parent_id] : null; }
-  const l1 = chain[0] || null, l2 = chain[1] || null, l3 = chain[2] || null;
   const opts = (parent) => areas.filter((a) => (parent ? a.parent_id === parent.id : a.level === 1));
   const pick = (e, fallback) => onChange(e.target.value ? Number(e.target.value) : fallback);
-  const o2 = l1 ? opts(l1) : [], o3 = l2 ? opts(l2) : [];
-  return (<>
-    <Field label="Area (1° livello)"><select value={l1?.id || ''} onChange={(e) => pick(e, null)}><option value="">–</option>{opts(null).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></Field>
-    <Field label="Area (2° livello)" help={l1 ? `di: ${l1.name}` : 'scegli prima il 1° livello'}><select value={l2?.id || ''} disabled={!o2.length} onChange={(e) => pick(e, l1?.id || null)}><option value="">–</option>{o2.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></Field>
-    <Field label="Area (3° livello)" help={l2 ? `di: ${l2.name}` : 'scegli prima il 2° livello'}><select value={l3?.id || ''} disabled={!o3.length} onChange={(e) => pick(e, l2?.id || null)}><option value="">–</option>{o3.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></Field>
-  </>);
+  const rows = [];
+  for (let i = 0; i < MAX; i++) {
+    const parent = i === 0 ? null : chain[i - 1] || null;
+    const list = i === 0 ? opts(null) : parent ? opts(parent) : [];
+    if (i > 0 && !list.length && !chain[i]) { if (i >= 3) break; }
+    rows.push(<Field key={i} label={`Area (${i + 1}° livello)`} help={i === 0 ? undefined : parent ? `di: ${parent.name}` : `scegli prima il ${i}° livello`}><select value={chain[i]?.id || ''} disabled={i > 0 && !list.length} onChange={(e) => pick(e, parent?.id || null)}><option value="">–</option>{list.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></Field>);
+  }
+  return <>{rows}</>;
 }
 
 /** Doppie funzioni: aree aggiuntive oltre a quella principale. */

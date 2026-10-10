@@ -118,13 +118,24 @@ function layout(tree, { boxW, gapX, showStaff }) {
   const rows = (t, k = 1) => Math.ceil(((t || '').length || 1) / (cpl * k));
   const boxH = (n) => 0.22 + rows(n.name) * 0.15 + rows(n.head?.name || 'Referente da definire') * 0.14 + (n.head?.job_title ? rows(n.head.job_title, 1.15) * 0.12 : 0) + (n.collapsed || (!showStaff && n.headcount > 1 && !(n.children || []).length) ? 0.12 : 0)
     + (showStaff && n.staff?.length ? n.staff.slice(0, MAX_STAFF).reduce((a, p) => a + rows(`${p.name}${p.job_title ? ` · ${p.job_title}` : ''}`, 1.2) * 0.12, 0) + (n.staff.length > MAX_STAFF ? 0.12 : 0) + 0.06 : 0);
-  const width = (n) => { n._kids = [...(n._root ? [] : (n.staff_units || [])), ...(n.children || [])]; n._w = !n._kids.length ? boxW : Math.max(boxW, n._kids.reduce((a, c) => a + width(c), 0) + gapX * (n._kids.length - 1)); return n._w; };
+  const STAFF_GAP = 0.6;
+  const staffRowW = (units) => { const nHalf = Math.ceil(units.length / 2); return 2 * (nHalf * boxW + Math.max(0, nHalf - 1) * gapX) + STAFF_GAP; };
+  const width = (n) => {
+    // tecnostruttura di un nodo non radice: riga virtuale tra il nodo e il suo pettine
+    if (!n._root && !n._staffRow && (n.staff_units || []).length) {
+      const virt = { _staffRow: true, name: '', staff_units: n.staff_units, children: n.children || [] };
+      n._kids = [virt];
+    } else n._kids = n.children || [];
+    const kidsW = n._kids.length ? n._kids.reduce((a, c) => a + width(c), 0) + gapX * (n._kids.length - 1) : 0;
+    n._w = Math.max(boxW, kidsW, n._staffRow ? staffRowW(n.staff_units) : 0);
+    return n._w;
+  };
   width(tree);
-  const place = (n, x0, depth) => { n._depth = depth; n._x = x0 + n._w / 2; n._h = boxH(n); let x = x0 + (n._w - (n._kids.reduce((a, c) => a + c._w, 0) + gapX * (n._kids.length - 1))) / 2; for (const c of n._kids) { place(c, x, depth + 1); x += c._w + gapX; } };
+  const place = (n, x0, depth) => { n._depth = depth; n._x = x0 + n._w / 2; n._h = n._staffRow ? Math.max(...n.staff_units.map(boxH)) : boxH(n); let x = x0 + (n._w - (n._kids.reduce((a, c) => a + c._w, 0) + gapX * (n._kids.length - 1))) / 2; for (const c of n._kids) { place(c, x, depth + 1); x += c._w + gapX; } };
   place(tree, 0, 0);
   const all = []; const walk = (n) => { all.push(n); n._kids.forEach(walk); }; walk(tree);
   const rowH = []; for (const n of all) rowH[n._depth] = Math.max(rowH[n._depth] || 0, n._h);
-  return { all, rowH, totalW: tree._w };
+  return { all, rowH, totalW: tree._w, boxH };
 }
 
 function header(slide, { title, subtitle }) {
@@ -227,11 +238,25 @@ function drawTree(pptx, slide, tree, { title, subtitle, showStaff }) {
     if (!multi) { vline(pptx, slide, cx, y, ym); hline(pptx, slide, Math.min(cx, ...xs), Math.max(cx, ...xs), ym); }
     else { if (firstBar === null) firstBar = ym; lastBar = ym; hline(pptx, slide, xl, Math.max(...xs), ym); }
     for (const c of f.v._kids) vline(pptx, slide, px(c) + (boxW * s) / 2, ym, py(c));
+    const L_boxH = f.L.boxH;
     for (const n of f.L.all) {
       if (n._virtual) continue;
       for (const c of n._kids) {
         const x1 = px(n) + (boxW * s) / 2, y1 = py(n) + n._h * s, x2 = px(c) + (boxW * s) / 2, y2 = py(c), mid = y1 + (y2 - y1) / 2;
-        vline(pptx, slide, x1, y1, mid); hline(pptx, slide, x1, x2, mid); vline(pptx, slide, x2, mid, y2);
+        if (n._staffRow) { vline(pptx, slide, x1, py(n) + (n._h * s) / 2, mid); } else vline(pptx, slide, x1, y1, mid);
+        hline(pptx, slide, x1, x2, mid); vline(pptx, slide, x2, mid, y2);
+      }
+      if (n._staffRow) {
+        // riga di tecnostruttura: riquadri ai lati del tronco su una barra orizzontale
+        const ccx = px(n) + (boxW * s) / 2, rowTop = py(n), ym = rowTop + (n._h * s) / 2;
+        const nL = Math.ceil(n.staff_units.length / 2);
+        const left = n.staff_units.slice(0, nL), right = n.staff_units.slice(nL);
+        const boxes = [...left.map((u, i) => ({ u, x: ccx - STAFF_GAP * s / 2 - (i + 1) * boxW * s - i * gapX * s })), ...right.map((u, i) => ({ u, x: ccx + STAFF_GAP * s / 2 + i * (boxW + gapX) * s }))];
+        const xs = boxes.map((b) => b.x + (boxW * s) / 2);
+        vline(pptx, slide, ccx, rowTop, ym);
+        hline(pptx, slide, Math.min(ccx, ...xs), Math.max(ccx, ...xs), ym);
+        for (const b of boxes) drawBox(pptx, slide, b.u, { x: b.x, y: rowTop, w: boxW * s, h: Math.min(n._h, L_boxH(b.u)) * s, s, isRoot: false, showStaff });
+        continue;
       }
       drawBox(pptx, slide, n, { x: px(n), y: py(n), w: boxW * s, h: n._h * s, s, isRoot: false, showStaff });
     }
