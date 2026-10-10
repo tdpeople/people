@@ -148,6 +148,14 @@ export async function upsertLp(c, id, l) {
     ON CONFLICT (resource_id) DO UPDATE SET ${cols.map((k) => `${k}=EXCLUDED.${k}`).join(', ')}, updated_at=now()`, [id, ...vals]);
 }
 
+// Costo dell'esercizio corrente pro rata tra ingresso e cessazione
+function yearCost(x, annual) {
+  const year = new Date().getFullYear();
+  const from = x.hired_at && String(x.hired_at).slice(0, 10) > `${year}-01-01` ? String(x.hired_at).slice(0, 10) : `${year}-01-01`;
+  const to = x.terminated_at && String(x.terminated_at).slice(0, 10) < `${year}-12-31` ? String(x.terminated_at).slice(0, 10) : `${year}-12-31`;
+  const days = Math.max(0, (new Date(`${to}T12:00:00Z`) - new Date(`${from}T12:00:00Z`)) / 86400000 + 1);
+  return Math.round(annual * Math.min(1, days / 365) * 100) / 100;
+}
 // Arricchisce la risorsa con i dati economici (costo azienda, RAL vigente)
 async function enrich(rows, S) {
   return rows.map((x) => {
@@ -156,11 +164,12 @@ async function enrich(rows, S) {
       const ral = ralAt(x);
       const mboPct = x.mbo_enabled ? (Number(x.mbo_amount) > 0 && ral ? Number(x.mbo_amount) / ral * 100 : x.mbo_pct) : 0;
       const cost = companyCost(ral, coef, mboPct);
-      return { ...x, ral_current: ral, cost_coefficient_used: coef, cost_annual: cost.annual, cost_monthly: cost.monthly, cost_mbo_max: cost.mbo_max };
+      return { ...x, ral_current: ral, cost_coefficient_used: coef, cost_annual: cost.annual, cost_monthly: cost.monthly, cost_mbo_max: cost.mbo_max, cost_year: yearCost(x, cost.annual) };
     }
     if (x.kind === 'LP') {
       const m = x.est_monthly_cost != null ? Number(x.est_monthly_cost) : 0;
-      return { ...x, cost_monthly: m, cost_annual: Math.round(m * 12 * 100) / 100 };
+      const annual = Math.round(m * 12 * 100) / 100;
+      return { ...x, cost_monthly: m, cost_annual: annual, cost_year: yearCost(x, annual) };
     }
     return x;
   });
@@ -191,7 +200,7 @@ r.get('/', ah(async (req, res) => {
   const rows = await many(`${LIST_SQL} WHERE ${w.join(' AND ')} ORDER BY r.last_name, r.first_name`, P.values);
   const S = await getSettings();
   const out = await enrich(rows, S);
-  if (req.user.role === 'VIEWER') for (const x of out) { delete x.ral; delete x.ral_current; delete x.cost_annual; delete x.cost_monthly; delete x.cost_mbo_max; delete x.est_monthly_cost; }
+  if (req.user.role === 'VIEWER') for (const x of out) { delete x.ral; delete x.ral_current; delete x.cost_annual; delete x.cost_monthly; delete x.cost_mbo_max; delete x.cost_year; delete x.est_monthly_cost; }
   res.json(out);
 }));
 

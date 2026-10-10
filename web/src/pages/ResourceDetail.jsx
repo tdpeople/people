@@ -126,10 +126,12 @@ export default function ResourceDetail() {
                     <div className="line"><span>Coefficiente di costo</span><span>{r.cost_coefficient_used}</span></div>
                     <div className="big"><span>Costo annuo</span><span className="v">{eur(r.cost_annual)}</span></div>
                     <div className="line"><span>Costo mensile</span><span>{eur(r.cost_monthly)}</span></div>
+                    {(r.terminated_at || (r.hired_at && String(r.hired_at).slice(0, 4) === String(new Date().getFullYear()))) && <div className="line"><span>Costo esercizio {new Date().getFullYear()} pro rata{r.terminated_at ? ` (fino al ${itDate(r.terminated_at)})` : ''}</span><span>{eur(r.cost_year)}</span></div>}
                   </div>
                 </> : !isEmp && lp ? <>
                   <Row k="Costo mensile stimato" v={eur(r.cost_monthly)} />
                   <Row k="Costo annuo stimato" v={eur(r.cost_annual)} />
+                  {r.terminated_at && <Row k={`Costo esercizio ${new Date().getFullYear()} pro rata`} v={`${eur(r.cost_year)} (fino al ${itDate(r.terminated_at)})`} />}
                   <p className="small muted">Stima basata sui compensi fissi (o sul valore impostato nell'incarico); le componenti a prestazione e variabili non sono incluse.</p>
                 </> : <Empty>Dati economici non disponibili</Empty>}
               </Card>

@@ -8,12 +8,13 @@ const r = Router();
 const r2 = (n) => Math.round(n * 100) / 100;
 
 async function headcount() {
-  const rows = await many(`SELECT r.id, r.kind, r.status, r.sex, r.area_id, a.name AS area_name, r.last_name, r.first_name, r.hired_at, r.birth_date,
+  const rows = await many(`SELECT r.id, r.kind, r.status, r.sex, r.area_id, a.name AS area_name, r.last_name, r.first_name, r.hired_at, r.terminated_at, r.birth_date,
       e.contract_type, e.level, e.job_title, e.ral, e.ral_steps, e.mbo_enabled, e.mbo_pct, e.mbo_amount, e.cost_coefficient, e.weekly_hours,
       l.discipline, l.est_monthly_cost, l.fees
     FROM resources r LEFT JOIN areas a ON a.id=r.area_id LEFT JOIN employments e ON e.resource_id=r.id LEFT JOIN lp_contracts l ON l.resource_id=r.id
-    WHERE r.status IN ('ATTIVO','IMPEGNO') ORDER BY r.last_name, r.first_name`);
+    WHERE r.status IN ('ATTIVO','IMPEGNO') OR (r.status='CESSATO' AND r.terminated_at >= (CURRENT_DATE - INTERVAL '13 months')) ORDER BY r.last_name, r.first_name`);
   const S = await getSettings();
+  const year = new Date().getFullYear();
   return rows.map((x) => {
     let annual = 0; let monthly = 0; let mbo = 0; let ral = null;
     if (x.kind === 'DIPENDENTE') {
@@ -23,7 +24,12 @@ async function headcount() {
     } else {
       monthly = Number(x.est_monthly_cost || 0); annual = r2(monthly * 12);
     }
-    return { ...x, ral_current: ral, cost_annual: annual, cost_monthly: monthly, cost_mbo_max: mbo };
+    // Costo dell'esercizio corrente pro rata: dall'ingresso (o 1° gennaio) alla cessazione (o 31 dicembre)
+    const from = x.hired_at && String(x.hired_at).slice(0, 10) > `${year}-01-01` ? String(x.hired_at).slice(0, 10) : `${year}-01-01`;
+    const to = x.terminated_at && String(x.terminated_at).slice(0, 10) < `${year}-12-31` ? String(x.terminated_at).slice(0, 10) : `${year}-12-31`;
+    const days = Math.max(0, (new Date(`${to}T12:00:00Z`) - new Date(`${from}T12:00:00Z`)) / 86400000 + 1);
+    const cost_year = r2(annual * Math.min(1, days / 365));
+    return { ...x, ral_current: ral, cost_annual: annual, cost_monthly: monthly, cost_mbo_max: mbo, cost_year, active_days_year: Math.round(days), leaving: Boolean(x.terminated_at) };
   });
 }
 
@@ -50,6 +56,9 @@ r.get('/summary', ah(async (req, res) => {
     ral_total: sum(active.filter((x) => x.kind === 'DIPENDENTE'), 'ral_current'),
     cost_employees_annual: sum(active.filter((x) => x.kind === 'DIPENDENTE'), 'cost_annual'),
     cost_lp_annual: sum(active.filter((x) => x.kind === 'LP'), 'cost_annual'),
+    cost_year: sum(rows.filter((x) => x.status !== 'IMPEGNO'), 'cost_year'),
+    year: new Date().getFullYear(),
+    leaving: active.filter((x) => x.terminated_at).length,
   };
   const byArea = group(active, (x) => x.area_name);
   const byContract = group(active, (x) => (x.kind === 'LP' ? 'LP' : x.contract_type || 'TIND'), (k) => ({ TIND: 'Tempo indeterminato', TDET: 'Tempo determinato', APPRENDISTATO: 'Apprendistato', DIRIGENTE: 'Dirigente', LP: 'Libero professionista' }[k] || k));
@@ -59,7 +68,7 @@ r.get('/summary', ah(async (req, res) => {
   const months = [];
   const now = new Date(); now.setDate(1);
   for (let i = -11; i <= 3; i++) { const d = new Date(now.getFullYear(), now.getMonth() + i, 1); months.push(d.toISOString().slice(0, 7)); }
-  const trend = months.map((m) => { const end = `${m}-31`; const inForce = rows.filter((x) => x.hired_at && x.hired_at.slice(0, 10) <= end); return { month: m, employees: inForce.filter((x) => x.kind === 'DIPENDENTE').length, lp: inForce.filter((x) => x.kind === 'LP').length, cost_monthly: r2(inForce.reduce((a, x) => a + x.cost_monthly, 0)) }; });
+  const trend = months.map((m) => { const end = `${m}-31`; const start = `${m}-01`; const inForce = rows.filter((x) => x.hired_at && String(x.hired_at).slice(0, 10) <= end && (!x.terminated_at || String(x.terminated_at).slice(0, 10) >= start)); return { month: m, employees: inForce.filter((x) => x.kind === 'DIPENDENTE').length, lp: inForce.filter((x) => x.kind === 'LP').length, cost_monthly: r2(inForce.reduce((a, x) => a + x.cost_monthly, 0)) }; });
   // Età media
   const ages = active.filter((x) => x.birth_date).map((x) => (Date.now() - new Date(x.birth_date)) / (365.25 * 86400000));
   const deadlines = await computeDeadlines({ horizonDays: Number((await getSettings()).deadline_alert_days || 60) });
@@ -69,7 +78,7 @@ r.get('/summary', ah(async (req, res) => {
   const cv = await one(`SELECT count(*)::int AS total, count(*) FILTER (WHERE status='NUOVO')::int AS new FROM cv_box`);
   const letters = await one(`SELECT count(*) FILTER (WHERE status IN ('BOZZA','INVIATA'))::int AS open, count(*) FILTER (WHERE status='ACCETTATA')::int AS accepted FROM commitment_letters`);
   const strip = (g) => (viewer ? g.map(({ cost_annual, cost_monthly, ...rest }) => rest) : g);
-  const t = viewer ? { ...totals, cost_annual: null, cost_monthly: null, cost_mbo_max: null, ral_total: null, cost_employees_annual: null, cost_lp_annual: null } : totals;
+  const t = viewer ? { ...totals, cost_annual: null, cost_monthly: null, cost_mbo_max: null, ral_total: null, cost_employees_annual: null, cost_lp_annual: null, cost_year: null } : totals;
   res.json({ totals: t, by_area: strip(byArea), by_contract: strip(byContract), by_level: strip(byLevel), by_discipline: strip(byDiscipline), trend: viewer ? trend.map(({ cost_monthly, ...x }) => x) : trend,
     avg_age: ages.length ? r2(ages.reduce((a, b) => a + b, 0) / ages.length) : null,
     deadlines: deadlines.slice(0, 50), deadlines_overdue: deadlines.filter((d) => d.days < 0).length, deadlines_soon: deadlines.filter((d) => d.days >= 0 && d.days <= 30).length,

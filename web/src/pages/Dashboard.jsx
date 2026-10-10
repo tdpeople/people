@@ -50,7 +50,7 @@ export default function Dashboard() {
       {costs && (
         <div className="grid g4" style={{ marginTop: 16 }}>
           <div onClick={() => openDrill('Costo annuo per l\'azienda', () => true)} style={{ cursor: 'pointer' }}><Kpi accent label="Costo annuo per l'azienda" value={eur(t.cost_annual)} foot={`dipendenti ${eur(t.cost_employees_annual)} · LP ${eur(t.cost_lp_annual)}`} /></div>
-          <Kpi label="Costo mensile per l'azienda" value={eur(t.cost_monthly)} foot="costo annuo / 12 (stima su RAL e coefficienti)" />
+          <Kpi label={`Costo esercizio ${t.year}`} value={eur(t.cost_year)} foot={`pro rata su ingressi e cessazioni (${t.leaving ? `${t.leaving} cessazion${t.leaving === 1 ? 'e' : 'i'} programmat${t.leaving === 1 ? 'a' : 'e'}, ` : ''}mensile a regime ${eur(t.cost_monthly)})`} />
           <Kpi label="Monte RAL dipendenti" value={eur(t.ral_total)} foot="RAL vigenti alla data odierna" />
           <Kpi label="MBO massimo erogabile" value={eur(t.cost_mbo_max)} foot="premi al 100% degli obiettivi, costo azienda" />
         </div>
