@@ -159,7 +159,7 @@ export function EmploymentForm({ value: v, onChange, letter = false, sites = [] 
       <div className="row">
         <label className="f inline"><input type="checkbox" checked={Boolean(v.mbo_enabled)} onChange={(e) => s('mbo_enabled', e.target.checked)} /> MBO previsto</label>
         {v.mbo_enabled && <Field label="Premio massimo (% RAL)"><input type="number" step="0.5" min="0" max="100" value={v.mbo_pct ?? ''} onChange={(e) => s('mbo_pct', e.target.value === '' ? null : Number(e.target.value))} style={{ width: 120 }} /></Field>}
-        {v.mbo_enabled && isDir && !letter && <Field label="oppure premio in cifra fissa (€/anno)" help="Se valorizzato prevale sulla percentuale"><MoneyInput value={v.mbo_amount ?? ''} onChange={(x) => s('mbo_amount', x)} /></Field>}
+        {v.mbo_enabled && !letter && <Field label="oppure premio in cifra fissa (€/anno)" help="Se valorizzato prevale sulla percentuale"><MoneyInput value={v.mbo_amount ?? ''} onChange={(x) => s('mbo_amount', x)} /></Field>}
         {v.mbo_enabled && !letter && <Field label="Esercizio"><input type="number" value={v.mbo_year ?? new Date().getFullYear()} onChange={(e) => s('mbo_year', Number(e.target.value))} style={{ width: 110 }} /></Field>}
       </div>
       {v.mbo_enabled && !letter && <div style={{ marginTop: 10 }}><MboEditor value={v.mbo_objectives || []} onChange={(x) => s('mbo_objectives', x)} /></div>}

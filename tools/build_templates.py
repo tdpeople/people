@@ -115,7 +115,7 @@ def build_contratto():
     p = clone_after(p, 'Comunichiamo fin da adesso che con decorrenza {dal} la Sua retribuzione passerà ad euro {ral} lordi annui. Provvederemo a tempo debito a formalizzare tale aumento con nuova comunicazione nella quale saranno indicate le precisazioni del caso.')
     p = clone_after(p, '{/scatti}')
     p = clone_after(p, '{#mbo}')
-    p = clone_after(p, 'Per lo specifico ruolo Le potrà essere assegnato, in aggiunta alla Sua RAL come sopra determinata, anche un premio per obiettivi (MBO) fino al {mbo_pct}% della RAL, definito da specifico accordo annuale.')
+    p = clone_after(p, 'Per lo specifico ruolo Le potrà essere assegnato, in aggiunta alla Sua RAL come sopra determinata, anche un premio per obiettivi (MBO) {mbo_frase}, definito da specifico accordo annuale.')
     clone_after(p, '{/mbo}')
     c = rows['Periodo di Prova:']
     set_text(c.paragraphs[0], '{periodo_prova}')
@@ -147,7 +147,7 @@ def build_mbo():
     repl_any(P, 'anno solare 2026 (1° gennaio 2026 – 31 dicembre 2026). La valutazione intermedia avverrà entro il 31 luglio 2026; la valutazione finale entro il 28 febbraio 2027.',
              'anno solare {anno} (1° gennaio {anno} – 31 dicembre {anno}). La valutazione intermedia avverrà entro il 31 luglio {anno}; la valutazione finale entro il 28 febbraio {anno_succ}.')
     repl_any(P, 'cedolino del mese di marzo 2027', 'cedolino del mese di marzo {anno_succ}')
-    repl_any(P, 'pari al 10% della Retribuzione', 'pari al {mbo_pct}% della Retribuzione')
+    repl_any(P, 'pari al 10% della Retribuzione Annua Lorda (RAL) del destinatario', '{premio_frase}')
     repl_any(P, 'Firenze (FI), 03/04/2026', '{luogo_data}')
     t = d.tables[0]
     row = t.rows[1]

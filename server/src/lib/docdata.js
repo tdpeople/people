@@ -77,7 +77,7 @@ export function contractData({ resource: r, employment: e, settings: S, letterDa
     composta_intro: ', e sarà così composta:',
     voci,
     scatti: ralStepsSentence(e.ral_steps).map((s) => ({ dal: itDate(s.from), ral: eurIt(s.ral) })),
-    mbo: e.mbo_enabled ? [{ mbo_pct: String(Number(e.mbo_pct || 0)).replace('.', ',') }] : [],
+    mbo: e.mbo_enabled ? [{ mbo_frase: mboClause(e) }] : [],
     periodo_prova: txt(e.probation, 'periodo di prova'),
     sede_lavoro: e.work_site || S.company_address || PH('sede di lavoro'),
     has_benefits: benefits.length > 0,
@@ -94,7 +94,8 @@ export function mboData({ resource: r, employment: e, settings: S, letterDate })
     destinatari_label: e.mbo_label || 'Top Management',
     anno: String(year),
     anno_succ: String(year + 1),
-    mbo_pct: Number(e.mbo_pct) > 0 ? String(Number(e.mbo_pct)).replace('.', ',') : PH('% mbo'),
+    mbo_pct: Number(e.mbo_pct) > 0 ? String(Number(e.mbo_pct)).replace('.', ',') : (Number(e.mbo_amount) > 0 && Number(e.ral) ? String(Math.round(Number(e.mbo_amount) / Number(e.ral) * 10000) / 100).replace('.', ',') : PH('% mbo')),
+    premio_frase: mboClause(e, 'piano'),
     luogo_data: `${S.letter_city || 'Firenze'} (FI), ${itDate(letterDate || e.letter_date || new Date().toISOString().slice(0, 10))}`,
     obiettivi: objectives.length ? objectives : [{ area: PH('area'), obiettivo: PH('obiettivo'), kpi: PH('kpi'), target: PH('target'), peso: PH('peso') }],
   };
@@ -215,6 +216,19 @@ export function numberToWordsIt(n) {
 }
 const MONTHLY_WORDS = { 12: 'dodici', 13: 'tredici', 14: 'quattordici', 15: 'quindici' };
 
+/** Frase del premio MBO: cifra fissa annua se valorizzata, altrimenti percentuale della RAL. */
+export function mboClause(e, mode = 'contratto') {
+  const amount = Number(e.mbo_amount) || 0; const pct = Number(e.mbo_pct) || 0;
+  if (mode === 'piano') {
+    if (amount) return `pari a € ${eurIt(amount)} lordi annui`;
+    if (pct) return `pari al ${String(pct).replace('.', ',')}% della Retribuzione Annua Lorda (RAL) del destinatario`;
+    return `pari a ${PH('importo o % mbo')}`;
+  }
+  if (amount) return `fino a € ${eurIt(amount)} lordi annui`;
+  if (pct) return `fino al ${String(pct).replace('.', ',')}% della RAL`;
+  return `fino a ${PH('importo o % mbo')}`;
+}
+
 /** Chi firma per la Società: il firmatario standard, oppure il consigliere delegato quando il destinatario è il firmatario stesso. */
 export function signatoryFor(r, S) {
   const std = (S.signatory_name || '').trim().toLowerCase();
@@ -256,7 +270,7 @@ export function dirigenteData({ resource: r, employment: e, settings: S, letterD
     ral_lettere: hasRal ? numberToWordsIt(e.ral) : PH('importo in lettere'),
     mensilita_lettere: MONTHLY_WORDS[monthly] || String(monthly),
     minimo_dirigenti: eurIt(dec.minimum_annual),
-    mbo: e.mbo_enabled ? [{ mbo_frase: Number(e.mbo_amount) > 0 ? `fino a € ${eurIt(e.mbo_amount)} annui` : Number(e.mbo_pct) > 0 ? `fino al ${String(Number(e.mbo_pct)).replace('.', ',')}% della retribuzione fissa` : `fino a ${PH('importo o % mbo')}` }] : [],
+    mbo: e.mbo_enabled ? [{ mbo_frase: mboClause(e).replace('della RAL', 'della retribuzione fissa') }] : [],
     has_benefits: benefits.length > 0,
     benefits,
     firmatario: sign.name,
