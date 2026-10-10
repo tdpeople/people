@@ -83,6 +83,17 @@ r.post('/areas', requireWrite, ah(async (req, res) => {
   await audit(req, 'AREA_CREATE', 'area', row.id, d);
   res.status(201).json(row);
 }));
+r.delete('/areas/:id', requireRole('ADMIN'), ah(async (req, res) => {
+  const id = Number(req.params.id);
+  const a = await one('SELECT name FROM areas WHERE id=$1', [id]);
+  if (!a) throw notFound();
+  const n = (await one('SELECT count(*)::int AS n FROM resources WHERE area_id=$1', [id])).n;
+  if (n > 0) throw bad(`L'area "${a.name}" ha ${n} risors${n === 1 ? 'a' : 'e'} assegnat${n === 1 ? 'a' : 'e'}: spostale in un'altra area prima di eliminarla`);
+  await q('UPDATE org_units SET area_id=NULL WHERE area_id=$1', [id]);
+  await q('DELETE FROM areas WHERE id=$1', [id]);
+  await audit(req, 'AREA_DELETE', 'area', id, { name: a.name });
+  res.json({ ok: true });
+}));
 r.put('/areas/:id', requireWrite, ah(async (req, res) => {
   const d = parse(z.object({ name: z.string().min(2).max(120).optional(), sort_order: z.number().int().optional(), active: z.boolean().optional() }), req.body);
   const cols = Object.keys(d);

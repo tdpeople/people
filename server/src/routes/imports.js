@@ -13,6 +13,8 @@ import { config } from '../config.js';
 import { personSchema, employmentSchema, lpSchema, upsertEmployment, upsertLp } from './resources.js';
 
 const r = Router();
+// Nomi delle aree usati nei pacchetti precedenti all'allineamento con l'organigramma SGI
+const AREA_ALIASES = {"Punti Prelievo e Accettazione": "Network Punti Prelievo", "Diagnostica per Immagini": "Diagnostic Center", "People & Culture": "Legal, People and Organization", "Finance e Amministrazione": "Finance", "Retail e Comunicazione": "Retail & Communications Management", "Qualità, Sicurezza e SGI": "HSQ Management", "Qualità Sicurezza e SGI": "HSQ Management", "Procurement e Logistica": "Operations", "Medicina del Lavoro": "B2B", "Medicina Specialistica": "Direzione Generale", "Legale": "Direzione Generale", "IT e Sistemi Informativi": "Direzione Generale"};
 const upload = multer({ storage: multer.diskStorage({ destination: os.tmpdir() }), limits: { fileSize: config.maxPackMb * 1024 * 1024 } });
 
 const MIME = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', doc: 'application/msword', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', xls: 'application/vnd.ms-excel', zip: 'application/zip', txt: 'text/plain' };
@@ -61,7 +63,7 @@ r.post('/pack', requireRole('ADMIN'), upload.single('file'), ah(async (req, res)
       try {
         const { area_name, manager_key, ...rawPerson } = item.person;
         const person = personSchema.parse(rawPerson);
-        if (area_name) person.area_id = (await one('SELECT id FROM areas WHERE lower(name)=lower($1)', [area_name]))?.id || null;
+        if (area_name) person.area_id = (await one('SELECT id FROM areas WHERE lower(name)=lower($1)', [AREA_ALIASES[area_name] || area_name]))?.id || null;
         const existing = person.tax_code ? await one('SELECT id FROM resources WHERE upper(tax_code)=upper($1)', [person.tax_code]) : await one('SELECT id FROM resources WHERE lower(last_name)=lower($1) AND lower(first_name)=lower($2)', [person.last_name, person.first_name]);
         let id;
         if (existing && mode === 'skip') { keyToId[item.key] = existing.id; stats.resources_skipped++; continue; }

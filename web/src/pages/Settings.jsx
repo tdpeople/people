@@ -54,8 +54,8 @@ export default function Settings() {
             <div className="form-grid">{g.keys.map(([k, l]) => <Field key={k} label={l} className={k === 'irpef_brackets' || k.startsWith('company_') ? 'span2' : ''}><input value={v[k] ?? ''} onChange={(e) => setV({ ...v, [k]: e.target.value })} /></Field>)}</div>
           </Card>
         ))}
-        <Card title="Aree aziendali">
-          <table className="t"><tbody>{(areas.data || []).map((a) => <tr key={a.id}><td>{a.name}</td><td className="num"><Badge>{a.headcount} risorse</Badge></td><td className="num"><button className="btn sm link" onClick={async () => { await api.put(`/areas/${a.id}`, { active: !a.active }); areas.reload(); }}>{a.active ? 'Disattiva' : 'Riattiva'}</button></td></tr>)}</tbody></table>
+        <Card title="Aree aziendali" actions={<span className="small muted">dall'organigramma TD-SGI-IDL007</span>}>
+          <table className="t"><tbody>{(areas.data || []).map((a) => <tr key={a.id}><td>{a.name}</td><td className="num"><Badge>{a.headcount} risorse</Badge></td><td className="num">{a.headcount > 0 ? <span className="small muted" title="Sposta prima le risorse in un'altra area">in uso</span> : <button className="btn sm danger" onClick={async () => { if (!window.confirm(`Eliminare l'area "${a.name}"?`)) return; try { await api.del(`/areas/${a.id}`); toast('Area eliminata'); areas.reload(); } catch (e) { toast(e.message, 'err'); } }}>Elimina</button>}</td></tr>)}</tbody></table>
           <div className="row" style={{ marginTop: 10 }}><input value={newArea} onChange={(e) => setNewArea(e.target.value)} placeholder="Nuova area" /><button className="btn sm" disabled={!newArea} onClick={async () => { await api.post('/areas', { name: newArea }); setNewArea(''); areas.reload(); }}>Aggiungi</button></div>
         </Card>
         <Card title="Sedi di lavoro (per i contratti)">

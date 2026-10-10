@@ -1,20 +1,25 @@
 // Dati di base caricati al primo avvio (idempotenti)
 
-export const AREAS = [
+export const AREAS = [ // dall'organigramma TD-SGI-IDL007_01 Allegato 1 (tutte le unità, escluse le singole sedi)
   'Direzione Generale',
+  'Operations',
+  'Finance',
+  'Legal, People and Organization',
+  'Flow & Back Office Management',
+  'Retail & Communications Management',
+  'HSQ Management',
   'Laboratorio di Analisi',
+  'Direzione Tecnica',
+  'Lab Operations',
+  'Preanalitica',
+  'Core Lab',
+  'Microbiologia',
+  'Biologia Molecolare',
   'Anatomia Patologica',
-  'Diagnostica per Immagini',
-  'Medicina Specialistica',
-  'Medicina del Lavoro',
-  'Punti Prelievo e Accettazione',
-  'People & Culture',
-  'Finance e Amministrazione',
-  'Procurement e Logistica',
-  'Retail e Comunicazione',
-  'Qualità, Sicurezza e SGI',
-  'Legale',
-  'IT e Sistemi Informativi',
+  'Network Punti Prelievo',
+  'B2B',
+  'Diagnostic Center',
+  'Direzione Sanitaria',
 ];
 
 export const WORK_SITES = [
@@ -138,30 +143,30 @@ export const CATEGORY_LABELS = Object.fromEntries(DOSSIER_REQUIREMENTS.map((r) =
 // Organigramma (TD-SGI-IDL007_01 - Allegato 1, agg. 22/09/2026). Le unità STAFF sono le posizioni "di staff"
 // del diagramma originale (C-level a riporto del CEO, Direttore Sanitario e Lab Operations Manager).
 // L'asterisco nel documento originale non ha legenda: viene conservato nelle note come "da confermare" (ipotesi).
-const DS = (name) => ({ name: 'Direzione Sanitaria', role_title: 'Direttore Sanitario', head_name: name, kind: 'STAFF' });
+const DS = (name) => ({ name: 'Direzione Sanitaria', role_title: 'Direttore Sanitario', head_name: name, kind: 'STAFF', area: 'Direzione Sanitaria' });
 export const ORG_UNITS = {
   name: 'Direzione Generale', role_title: 'Chief Executive Officer', head_name: 'Francesco Epifani', kind: 'DIREZIONE', area: 'Direzione Generale',
   children: [
-    { name: 'Operations', role_title: 'Chief Operating Officer', head_name: 'Valentina Zezza', kind: 'STAFF', area: 'Direzione Generale' },
-    { name: 'Finance', role_title: 'Chief Financial Officer', head_name: 'Vincenzo Malenchini', kind: 'STAFF', area: 'Finance e Amministrazione' },
-    { name: 'Legal, People and Organization', role_title: 'Chief of Legal, People and Organization', head_name: 'Angelica Corradi', kind: 'STAFF', area: 'People & Culture' },
-    { name: 'Flow & Back Office Management', role_title: 'Flow & Back Office Manager', head_name: 'Rosetta Greco', kind: 'STAFF', area: 'Punti Prelievo e Accettazione' },
-    { name: 'Retail & Communications Management', role_title: 'Retail & Communications Manager', head_name: 'Silvia Sansoni', kind: 'STAFF', area: 'Retail e Comunicazione' },
-    { name: 'HSQ Management', role_title: 'HSQ Manager', head_name: 'Iacopo Cupelli', kind: 'STAFF', area: 'Qualità Sicurezza e SGI' },
+    { name: 'Operations', role_title: 'Chief Operating Officer', head_name: 'Valentina Zezza', kind: 'STAFF', area: 'Operations' },
+    { name: 'Finance', role_title: 'Chief Financial Officer', head_name: 'Vincenzo Malenchini', kind: 'STAFF', area: 'Finance' },
+    { name: 'Legal, People and Organization', role_title: 'Chief of Legal, People and Organization', head_name: 'Angelica Corradi', kind: 'STAFF', area: 'Legal, People and Organization' },
+    { name: 'Flow & Back Office Management', role_title: 'Flow & Back Office Manager', head_name: 'Rosetta Greco', kind: 'STAFF', area: 'Flow & Back Office Management' },
+    { name: 'Retail & Communications Management', role_title: 'Retail & Communications Manager', head_name: 'Silvia Sansoni', kind: 'STAFF', area: 'Retail & Communications Management' },
+    { name: 'HSQ Management', role_title: 'HSQ Manager', head_name: 'Iacopo Cupelli', kind: 'STAFF', area: 'HSQ Management' },
     { name: 'Laboratorio di Analisi', role_title: 'Responsabile Laboratorio di Analisi', head_name: 'Valentina Zezza', kind: 'LINEA', area: 'Laboratorio di Analisi', children: [
-      { name: 'Direzione Tecnica', role_title: 'Direttore Tecnico', head_name: 'Maria Teresa Balzano', kind: 'FUNZIONE', area: 'Laboratorio di Analisi', children: [
+      { name: 'Direzione Tecnica', role_title: 'Direttore Tecnico', head_name: 'Maria Teresa Balzano', kind: 'FUNZIONE', area: 'Direzione Tecnica', children: [
         DS('Gian Luigi Taddei'),
-        { name: 'Lab Operations', role_title: 'Lab Operations Manager', head_name: 'Sara Arrighetti', kind: 'STAFF', area: 'Laboratorio di Analisi' },
-        { name: 'Preanalitica', role_title: 'Responsabile Preanalitica', head_name: 'Sara Arrighetti', kind: 'FUNZIONE', area: 'Laboratorio di Analisi' },
-        { name: 'Core Lab', role_title: 'Responsabile Core Lab', head_name: 'Antonia Esposito', kind: 'FUNZIONE', area: 'Laboratorio di Analisi' },
-        { name: 'Microbiologia', role_title: 'Responsabile Microbiologia', head_name: 'Chiara Chilleri', kind: 'FUNZIONE', area: 'Laboratorio di Analisi' },
-        { name: 'Biologia Molecolare', role_title: 'Responsabile Biologia Molecolare', head_name: 'Silvia Quattrone', kind: 'FUNZIONE', area: 'Laboratorio di Analisi' },
+        { name: 'Lab Operations', role_title: 'Lab Operations Manager', head_name: 'Sara Arrighetti', kind: 'STAFF', area: 'Lab Operations' },
+        { name: 'Preanalitica', role_title: 'Responsabile Preanalitica', head_name: 'Sara Arrighetti', kind: 'FUNZIONE', area: 'Preanalitica' },
+        { name: 'Core Lab', role_title: 'Responsabile Core Lab', head_name: 'Antonia Esposito', kind: 'FUNZIONE', area: 'Core Lab' },
+        { name: 'Microbiologia', role_title: 'Responsabile Microbiologia', head_name: 'Chiara Chilleri', kind: 'FUNZIONE', area: 'Microbiologia' },
+        { name: 'Biologia Molecolare', role_title: 'Responsabile Biologia Molecolare', head_name: 'Silvia Quattrone', kind: 'FUNZIONE', area: 'Biologia Molecolare' },
         { name: 'Anatomia Patologica', role_title: 'Responsabile Anatomia Patologica', head_name: 'Cristina Fondi', kind: 'FUNZIONE', area: 'Anatomia Patologica', children: [
           { name: 'Anatomia Patologica', role_title: 'Responsabile Tecnico', head_name: 'Stefania Barelli', kind: 'FUNZIONE', area: 'Anatomia Patologica' },
         ] },
       ] },
     ] },
-    { name: 'Network Punti Prelievo', role_title: 'Responsabile Network Punti Prelievo', head_name: 'Silvia Sansoni', kind: 'LINEA', area: 'Punti Prelievo e Accettazione', children: [
+    { name: 'Network Punti Prelievo', role_title: 'Responsabile Network Punti Prelievo', head_name: 'Silvia Sansoni', kind: 'LINEA', area: 'Network Punti Prelievo', children: [
       { name: 'Montemurlo', role_title: 'Referente Punto Prelievo', head_name: 'Piera Mucci', kind: 'SEDE', notes: 'Asterisco nel documento originale: da confermare', children: [DS('Gian Luigi Taddei')] },
       { name: 'Calenzano', role_title: 'Referente Punto Prelievo', head_name: 'Manuela Gelli', kind: 'SEDE', children: [DS('Gian Luigi Taddei')] },
       { name: 'Quarrata', role_title: 'Referente Punto Prelievo', head_name: 'Lorenzo Gucci', kind: 'SEDE', notes: 'Asterisco nel documento originale: da confermare', children: [DS('Gian Luigi Taddei')] },
@@ -172,8 +177,8 @@ export const ORG_UNITS = {
       { name: 'Livorno, Centro', role_title: 'Referente Punto Prelievo', kind: 'SEDE', tbd: true, children: [DS('Gian Luigi Taddei')] },
       { name: 'Livorno, Montenero', role_title: 'Referente Punto Prelievo', kind: 'SEDE', tbd: true, children: [DS('Gian Luigi Taddei')] },
     ] },
-    { name: 'B2B', role_title: 'Responsabile B2B', head_name: 'Valentina Cesati', kind: 'LINEA', area: 'Retail e Comunicazione' },
-    { name: 'Diagnostic Center', role_title: 'Responsabile Diagnostic Center', head_name: 'Rosetta Greco', kind: 'LINEA', area: 'Diagnostica per Immagini', children: [
+    { name: 'B2B', role_title: 'Responsabile B2B', head_name: 'Valentina Cesati', kind: 'LINEA', area: 'B2B' },
+    { name: 'Diagnostic Center', role_title: 'Responsabile Diagnostic Center', head_name: 'Rosetta Greco', kind: 'LINEA', area: 'Diagnostic Center', children: [
       { name: 'Centro Diagnostico Firenze', role_title: 'Referente di sede', kind: 'SEDE', tbd: true, notes: 'Asterisco nel documento originale: da confermare', children: [DS('Vincenzo Cupelli')] },
       { name: 'Centro Diagnostico Firenze CIFS', role_title: 'Referente di sede', head_name: 'Angela De Marco', kind: 'SEDE', children: [DS('Oreste Saltarelli')] },
       { name: 'Centro Medico Borgo San Lorenzo', role_title: 'Referente di sede', head_name: 'Riccardo Gabellini', kind: 'SEDE', children: [DS('Roberto Gastaldi')] },
