@@ -246,7 +246,12 @@ r.post('/bulk-import', requireWrite, upload.single('file'), ah(async (req, res) 
 }));
 
 r.get('/', ah(async (req, res) => {
-  await q("UPDATE resources SET status='CESSATO', updated_at=now() WHERE terminated_at IS NOT NULL AND terminated_at <= CURRENT_DATE AND status IN ('ATTIVO','IMPEGNO')"); // cessazioni con decorrenza raggiunta
+  const due = await many("UPDATE resources SET status='CESSATO', updated_at=now() WHERE terminated_at IS NOT NULL AND terminated_at <= CURRENT_DATE AND status IN ('ATTIVO','IMPEGNO') RETURNING id, manager_id"); // cessazioni con decorrenza raggiunta
+  for (const x of due) {
+    await q('UPDATE resources SET manager_id=$2, updated_at=now() WHERE manager_id=$1 AND id<>$1', [x.id, x.manager_id && x.manager_id !== x.id ? x.manager_id : null]);
+    await q('UPDATE resources SET approver_id=NULL WHERE approver_id=$1', [x.id]);
+    await q('UPDATE areas SET head_resource_id=NULL WHERE head_resource_id=$1', [x.id]);
+  }
   const P = new Params();
   const w = ['TRUE'];
   if (req.query.kind) w.push(`r.kind = ${P.add(req.query.kind)}`);
@@ -387,8 +392,18 @@ r.put('/:id/terminate', requireWrite, ah(async (req, res) => {
     if (cur.kind === 'DIPENDENTE') await c.query('UPDATE employments SET end_date=$2, updated_at=now() WHERE resource_id=$1', [id, d.terminated_at]);
     else await c.query('UPDATE lp_contracts SET end_date=$2, updated_at=now() WHERE resource_id=$1', [id, d.terminated_at]);
   });
-  await audit(req, 'RESOURCE_TERMINATE', 'resource', id, { terminated_at: d.terminated_at, reason: d.reason });
-  res.json({ ok: true, status, terminated_at: d.terminated_at });
+  // Dalla data di cessazione la persona esce dall'organigramma: i suoi riporti passano al suo responsabile, le aree di cui era referente tornano al calcolo automatico
+  const handover = async () => {
+    const me = await one('SELECT manager_id, approver_id FROM resources WHERE id=$1', [id]);
+    const up = me?.manager_id && me.manager_id !== id ? me.manager_id : null;
+    const moved = (await one('WITH u AS (UPDATE resources SET manager_id=$2, updated_at=now() WHERE manager_id=$1 AND id<>$1 RETURNING id) SELECT count(*)::int AS n FROM u', [id, up])).n;
+    await q('UPDATE resources SET approver_id=NULL, updated_at=now() WHERE approver_id=$1', [id]);
+    const heads = (await one('WITH u AS (UPDATE areas SET head_resource_id=NULL WHERE head_resource_id=$1 RETURNING id) SELECT count(*)::int AS n FROM u', [id])).n;
+    return { moved, heads, up };
+  };
+  const h = status === 'CESSATO' ? await handover() : null;
+  await audit(req, 'RESOURCE_TERMINATE', 'resource', id, { terminated_at: d.terminated_at, reason: d.reason, handover: h });
+  res.json({ ok: true, status, terminated_at: d.terminated_at, handover: h });
 }));
 r.put('/:id/reactivate', requireWrite, ah(async (req, res) => {
   const id = Number(req.params.id);
