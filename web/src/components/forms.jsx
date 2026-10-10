@@ -137,7 +137,6 @@ export function EmploymentForm({ value: v, onChange, letter = false, sites = [] 
         {!letter && <Field label="Giorni di prova (per il calendario)"><input type="number" value={v.probation_days ?? ''} onChange={(e) => s('probation_days', e.target.value === '' ? null : Number(e.target.value))} /></Field>}
         <Field label="Autonomia di orario" className="inline" help=""><input type="checkbox" checked={Boolean(v.autonomous_hours)} onChange={(e) => s('autonomous_hours', e.target.checked)} /> clausola D.Lgs. 66/2003 (esclusione dai limiti massimi di orario)</Field>
         {!letter && <Field label="Smart working" className="inline"><input type="checkbox" checked={Boolean(v.smart_working)} onChange={(e) => s('smart_working', e.target.checked)} /> accordo di lavoro agile</Field>}
-        {!letter && <Field label="Exit fee" className="inline"><input type="checkbox" checked={Boolean(v.exit_fee)} onChange={(e) => s('exit_fee', e.target.checked)} /> documento integrativo exit fee</Field>}
       </div>
       {!letter && sim && (
         <div className="alert info" style={{ marginTop: 12, display: 'block' }}>

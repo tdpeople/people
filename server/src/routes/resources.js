@@ -76,7 +76,6 @@ export const employmentSchema = z.object({
   ral_steps: z.array(z.object({ from: z.string().regex(dateRe), ral: num() })).default([]),
   cost_coefficient: num(),
   letter_date: optDate(),
-  exit_fee: z.boolean().default(false),
   unilav_ref: opt(z.string().max(80)),
   reports_to: opt(z.string().max(300)),
   imported_from: opt(z.string().max(200)),

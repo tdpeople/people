@@ -159,7 +159,6 @@ export function parseContract(text) {
     const ben = benefitsBetween(lines, /benefits e\/o dotazioni di lavoro:/i, /^(Nel rispetto|Le ricordiamo|Il rapporto|La preghiamo|Con i migliori|\d+\.\s)/i); if (ben.length) employment.benefits = ben;
     employment.smart_working = /lavoro agile|smart working/i.test(flat);
   }
-  if (/exit fee/i.test(flat)) employment.exit_fee = true;
   if (!person.last_name) notes.push('Nome non riconosciuto nell\'intestazione');
   if (!employment.ral) notes.push('RAL non riconosciuta');
   if (!employment.start_date) notes.push('Data di assunzione non riconosciuta');
@@ -240,7 +239,7 @@ export async function refineWithAi(text, kind) {
   if (!config.anthropicKey || !text) return null;
   const schema = kind === 'MBO'
     ? '{"mbo_year": 2026, "mbo_pct": 10, "mbo_fixed_amount": null, "mbo_label": "Top Management", "letter_date": "YYYY-MM-DD", "mbo_objectives": [{"area": "", "objective": "", "kpi": "", "target": "", "weight": 25}]}'
-    : '{"person": {"first_name": "", "last_name": "", "title": "dott.", "sex": "M|F", "birth_place": "", "birth_date": "YYYY-MM-DD", "tax_code": "", "address": "", "zip": "", "city": "", "province": "FI"}, "employment": {"contract_type": "TIND|TDET|APPRENDISTATO|DIRIGENTE", "level": "Q|1|2|3S|3|4S|4|5|DIRIGENTE", "qualification": "", "job_title": "", "reports_to": "", "start_date": "YYYY-MM-DD", "end_date": null, "letter_date": "YYYY-MM-DD", "weekly_hours": 40, "weekly_days": 5, "autonomous_hours": true, "ral": 0, "monthly_payments": 14, "base_pay": 0, "superminimo": 0, "superminimo_absorbable": true, "function_allowance": 0, "ral_steps": [{"from": "YYYY-MM-DD", "ral": 0}], "probation": "", "work_site": "", "benefits": [""], "mbo_enabled": false, "mbo_pct": null, "smart_working": false, "exit_fee": false}}';
+    : '{"person": {"first_name": "", "last_name": "", "title": "dott.", "sex": "M|F", "birth_place": "", "birth_date": "YYYY-MM-DD", "tax_code": "", "address": "", "zip": "", "city": "", "province": "FI"}, "employment": {"contract_type": "TIND|TDET|APPRENDISTATO|DIRIGENTE", "level": "Q|1|2|3S|3|4S|4|5|DIRIGENTE", "qualification": "", "job_title": "", "reports_to": "", "start_date": "YYYY-MM-DD", "end_date": null, "letter_date": "YYYY-MM-DD", "weekly_hours": 40, "weekly_days": 5, "autonomous_hours": true, "ral": 0, "monthly_payments": 14, "base_pay": 0, "superminimo": 0, "superminimo_absorbable": true, "function_allowance": 0, "ral_steps": [{"from": "YYYY-MM-DD", "ral": 0}], "probation": "", "work_site": "", "benefits": [""], "mbo_enabled": false, "mbo_pct": null, "smart_working": false}}';
   const prompt = `Estrai i dati dal seguente ${kind === 'MBO' ? 'piano MBO' : 'contratto di lavoro'} italiano (il testo può provenire da OCR, correggi gli errori evidenti). Rispondi SOLO con un JSON con questa forma, usando null per i dati assenti, importi come numeri (es. 90000), date ISO:\n${schema}\n\nTESTO:\n${text.slice(0, 14000)}`;
   try {
     const res = await fetch('https://api.anthropic.com/v1/messages', {

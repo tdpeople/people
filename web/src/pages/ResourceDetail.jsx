@@ -89,7 +89,6 @@ export default function ResourceDetail() {
                 <Row k="Sede" v={e.work_site} />
                 <Row k="Benefit" v={(e.benefits || []).length ? e.benefits.join('; ') : 'Nessuno'} />
                 <Row k="Smart working" v={e.smart_working ? 'Sì' : 'No'} />
-                <Row k="Exit fee" v={e.exit_fee ? 'Sì' : null} />
                 <Row k="Data lettera" v={itDate(e.letter_date)} />
                 {e.notes && <p className="small muted" style={{ marginTop: 10, whiteSpace: 'pre-wrap' }}>{e.notes}</p>}
               </>}
@@ -160,7 +159,7 @@ export default function ResourceDetail() {
                       {['application/pdf', 'image/png', 'image/jpeg'].includes(a.mime) && <button className="btn sm ghost" onClick={() => setPreview({ url: `/api/resources/${id}/attachments/${a.id}/download?inline=1`, title: a.filename, mime: a.mime })}>Anteprima</button>}{' '}
                       <a className="btn sm ghost" href={`/api/resources/${id}/attachments/${a.id}/download`}>Scarica</a>{' '}
                       {writer && <button className="btn sm ghost" onClick={() => setModal({ editAtt: a })}>Modifica</button>}{' '}
-                      {writer && <button className="iconbtn" onClick={() => setModal({ delAtt: a })}><Icon name="trash" /></button>}
+                      {writer && <button className="iconbtn" title="Elimina dal dossier" aria-label="Elimina" onClick={() => setModal({ delAtt: a })}><Icon name="trash" /></button>}
                     </td>
                   </tr>);
               })}</tbody>

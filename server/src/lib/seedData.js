@@ -110,7 +110,6 @@ export const DOSSIER_REQUIREMENTS = [
   { kind: 'DIPENDENTE', category: 'CONSEGNA_DOTAZIONI', label: 'Consegna dotazioni (TD-SGI-MOD030)', required: false, sort_order: 170 },
   { kind: 'DIPENDENTE', category: 'SMART_WORKING', label: 'Accordo smart working', required: false, sort_order: 180 },
   { kind: 'DIPENDENTE', category: 'MBO', label: 'Piano MBO firmato', required: false, renew_months: 12, sort_order: 190 },
-  { kind: 'DIPENDENTE', category: 'EXIT_FEE', label: 'Documento integrativo exit fee', required: false, sort_order: 200 },
   { kind: 'DIPENDENTE', category: 'FORMAZIONE_SICUREZZA', label: 'Formazione sicurezza (D.Lgs. 81/2008)', required: true, renew_months: 60, sort_order: 210 },
   { kind: 'DIPENDENTE', category: 'VISITA_MEDICA', label: 'Idoneità sanitaria (medico competente)', required: false, renew_months: 12, sort_order: 220 },
   { kind: 'DIPENDENTE', category: 'ECM', label: 'Crediti ECM (triennio)', required: false, renew_months: 36, sort_order: 230 },

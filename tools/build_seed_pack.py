@@ -47,12 +47,12 @@ def person(key, last, first, *, sex=None, birth_place=None, birth_date=None, cf=
 
 def emp(level, job, ral, start, *, ctype='TIND', hours=40, days=5, days_label='dal lunedì al venerdì', autonomous=True, site=PRATIGNONE,
         benefits=(), probation='Nessuno.', probation_days=None, steps=(), base=None, superminimo=None, absorbable=True, allowance=None,
-        qualification=None, monthly=14, end=None, letter_date=None, smart=False, exit_fee=False, extra=None, ccnl='STUDI_PROFESSIONALI', notes=None):
+        qualification=None, monthly=14, end=None, letter_date=None, smart=False, extra=None, ccnl='STUDI_PROFESSIONALI', notes=None):
     e = {'contract_type': ctype, 'ccnl': ccnl, 'level': level, 'qualification': qualification or ('Quadro' if level == 'Q' else 'Dirigente' if ctype == 'DIRIGENTE' else 'Apprendista' if ctype == 'APPRENDISTATO' else 'Impiegato'),
          'job_title': job, 'weekly_hours': hours, 'weekly_days': days, 'days_label': days_label, 'autonomous_hours': autonomous, 'ral': ral, 'monthly_payments': monthly,
          'base_pay': base, 'superminimo': superminimo, 'superminimo_absorbable': absorbable, 'function_allowance': allowance, 'start_date': start, 'end_date': end,
          'probation': probation, 'probation_days': probation_days, 'work_site': site, 'benefits': list(benefits), 'smart_working': smart,
-         'ral_steps': [{'from': f, 'ral': r} for f, r in steps], 'letter_date': letter_date or start, 'exit_fee': exit_fee, 'notes': notes, 'mbo_enabled': False}
+         'ral_steps': [{'from': f, 'ral': r} for f, r in steps], 'letter_date': letter_date or start, 'notes': notes, 'mbo_enabled': False}
     if extra:
         e.update(extra)
     return e
@@ -69,13 +69,13 @@ R.append({**person('epifani', 'Epifani', 'Francesco', cf='PFNFNC84M03G751B', bir
 R.append({**person('zezza', 'Zezza', 'Valentina', cf='ZZZVNT85D61G999R', birth_place='Prato (PO)', birth_date='1985-04-21', address='Via de’ Barucci, 27', zip_='50127', city='Firenze', prov='FI', area='Laboratorio di Analisi', manager='epifani', title='dott.ssa'),
           'employment': emp('Q', 'Chief Operating Officer & BU Laboratory Manager', 90000, '2026-04-13', base=2408.53, superminimo=1206.01, absorbable=False, allowance=2814.03, benefits=['Auto aziendale ad uso promiscuo, Telepass e Tessera carburante'] + PC_TEL, smart=True, extra=mbo(10, 'Avvio completo del Laboratorio di Analisi'))})
 R.append({**person('greco', 'Greco', 'Rosetta', cf='GRCRTT79L67C352D', birth_place='Catanzaro (CZ)', birth_date='1979-07-27', address='Via dell’Argingrosso, 129', zip_='50142', city='Firenze', prov='FI', area='Punti Prelievo e Accettazione', manager='zezza'),
-          'employment': emp('1', 'Flow & Back Office Manager', 50000, '2026-04-13', site=BELFIORE, base=2131.39, superminimo=432.01, allowance=1008.03, benefits=PC_TEL, steps=[('2027-01-01', 55000)], smart=True, exit_fee=True, extra=mbo(10, 'Avvio completo del Software di Accettazione in tutte le strutture del Gruppo'))})
+          'employment': emp('1', 'Flow & Back Office Manager', 50000, '2026-04-13', site=BELFIORE, base=2131.39, superminimo=432.01, allowance=1008.03, benefits=PC_TEL, steps=[('2027-01-01', 55000)], smart=True, extra=mbo(10, 'Avvio completo del Software di Accettazione in tutte le strutture del Gruppo'))})
 R.append({**person('sansoni', 'Sansoni', 'Silvia', cf='SNSSLV79C70D458Z', birth_place='Faenza (RA)', birth_date='1979-03-30', address='Via Terracini, 16/2', zip_='50020', city='San Casciano in Val di Pesa', prov='FI', area='Retail e Comunicazione', manager='epifani'),
-          'employment': emp('1', 'Retail & Communications Manager', 50000, '2026-04-13', site=BELFIORE, base=2131.39, superminimo=432.01, allowance=1008.03, benefits=PC_TEL, steps=[('2027-01-01', 55000)], smart=True, exit_fee=True, extra=mbo(10, 'Avvio completo Piano di Comunicazione e di Retail del Gruppo'))})
+          'employment': emp('1', 'Retail & Communications Manager', 50000, '2026-04-13', site=BELFIORE, base=2131.39, superminimo=432.01, allowance=1008.03, benefits=PC_TEL, steps=[('2027-01-01', 55000)], smart=True, extra=mbo(10, 'Avvio completo Piano di Comunicazione e di Retail del Gruppo'))})
 R.append({**person('bussoletti', 'Bussoletti', 'Carolina', cf='BSSCLN79E68F844Q', birth_place='Narni (TR)', birth_date='1979-05-28', address='Via di Montughi, 31', zip_='50139', city='Firenze', prov='FI', area='People & Culture', manager='epifani'),
-          'employment': emp('1', 'People & Culture Manager', 55000, '2026-04-13', site=BELFIORE, base=2131.39, superminimo=539.15, allowance=1258.03, benefits=PC_TEL, steps=[('2027-01-01', 60000)], smart=True, exit_fee=True, extra=mbo(10, 'Completamento degli obiettivi del Piano Industriale sul modello organizzativo e la pianta organica'))})
+          'employment': emp('1', 'People & Culture Manager', 55000, '2026-04-13', site=BELFIORE, base=2131.39, superminimo=539.15, allowance=1258.03, benefits=PC_TEL, steps=[('2027-01-01', 60000)], smart=True, extra=mbo(10, 'Completamento degli obiettivi del Piano Industriale sul modello organizzativo e la pianta organica'))})
 R.append({**person('arrighetti', 'Arrighetti', 'Sara', cf='RRGSRA96B42D612W', birth_place='Firenze (FI)', birth_date='1996-02-02', address='Via Daniele Manin, 55', zip_='59100', city='Prato', prov='PO', area='Laboratorio di Analisi', manager='zezza'),
-          'employment': emp('1', 'Lab Operations Manager', 40000, '2026-04-13', base=2131.39, superminimo=217.73, allowance=508.03, benefits=PC_TEL, steps=[('2027-01-01', 42000)], exit_fee=True)})
+          'employment': emp('1', 'Lab Operations Manager', 40000, '2026-04-13', base=2131.39, superminimo=217.73, allowance=508.03, benefits=PC_TEL, steps=[('2027-01-01', 42000)])})
 R.append({**person('masseria', 'Masseria', 'Fabiana', cf='MSSFBN96S65G999Z', birth_place='Prato (PO)', birth_date='1996-11-25', address='Via Wangen, 29', zip_='59100', city='Prato', prov='PO', area='Finance e Amministrazione', manager='epifani', notes='Residenza: Via S. Salvatore, 21, Chiusa Sclafani (PA). Tutor aziendale: Francesco Epifani. Precedente apprendistato 01/09/2025-31/03/2026 (7 mesi).'),
           'employment': emp('2', 'Contabile e Responsabile del Controllo di Gestione (apprendistato professionalizzante)', 22092.42, '2026-04-13', ctype='APPRENDISTATO', autonomous=False, end='2028-03-12', probation='60 (sessanta) giorni di lavoro effettivo', probation_days=60,
                             base=1578.03, superminimo=0, allowance=0, steps=[('2027-03-13', 23391.90), ('2028-03-13', 25991.00)], notes='Retribuzione all’85% del minimo del livello 2 fino al 12/03/2027, 90% fino al 12/03/2028, poi 100%. Formazione interna 80 ore medie annue (art. 41 CCNL).')})
@@ -178,7 +178,7 @@ R.append({**person('bernardo', 'Bernardo', 'Silvia', kind='LP', sex='F', area='D
 
 # ------------------------------------------------------------------ Allegati: mappatura per nome file
 RULES = [
-    (r'150 -|unilav', 'UNILAV'), (r'exit_fee', 'EXIT_FEE'), (r'^mbo ', 'MBO'), (r'\.sw\.|smart working|-sw\.', 'SMART_WORKING'),
+    (r'150 -|unilav', 'UNILAV'), (r'^mbo ', 'MBO'), (r'\.sw\.|smart working|-sw\.', 'SMART_WORKING'),
     (r'regolamento|reg\. generale|reg gen|reg004', 'REGOLAMENTO'), (r'lettera di impegno', 'LETTERA_IMPEGNO'),
     (r'contratto lp|lp signed', 'ALTRO'), (r'contratto|\bctr\b|lettera assunzione|lettera di assunzione|signed|firmato|sottoscritto|f\.to|scansione', 'CONTRATTO_FIRMATO'),
     (r'allegati al contratto|allegato contratto', 'ALTRO'),
