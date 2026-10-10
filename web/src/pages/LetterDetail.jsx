@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api.js';
 import { useAuth, canWrite, isAdmin } from '../auth.jsx';
@@ -16,10 +16,21 @@ export default function LetterDetail() {
   const [edit, setEdit] = useState(null);
   const [preview, setPreview] = useState(null);
   const [del, setDel] = useState(false);
+  const fileRef = useRef(null);
   const writer = canWrite(user);
   if (d.error) return <div className="page"><ErrorBox error={d.error} /></div>;
   if (!d.data) return <div className="page"><Loading /></div>;
   const l = d.data;
+  const uploadSigned = async (e) => {
+    const file = e.target.files?.[0]; e.target.value = '';
+    if (!file) return;
+    const fd = new FormData(); fd.append('file', file); fd.append('category', 'LETTERA_IMPEGNO'); fd.append('signed', 'true'); fd.append('issued_at', new Date().toISOString().slice(0, 10)); fd.append('notes', `Lettera di impegno #${id} firmata`);
+    try {
+      await api.post(`/resources/${l.resource_id}/attachments`, fd);
+      if (!['ACCETTATA', 'CONVERTITA'].includes(l.status)) await api.put(`/scouting/letters/${id}`, { status: 'ACCETTATA' });
+      toast('Lettera firmata archiviata nel dossier'); d.reload();
+    } catch (err) { toast(err.message, 'err'); }
+  };
   const setStatus = async (status) => { try { await api.put(`/scouting/letters/${id}`, { status }); toast('Stato aggiornato'); d.reload(); } catch (e) { toast(e.message, 'err'); } };
   const generate = async () => { try { const r = await api.post(`/scouting/letters/${id}/generate`); toast(`Lettera generata (v${r.version})${(r.missing || []).length ? ` · ${r.missing.length} segnaposto da completare` : ''}`); d.reload(); } catch (e) { toast(e.message, 'err'); } };
   const save = async () => {
@@ -72,6 +83,12 @@ export default function LetterDetail() {
           {!l.documents.length ? <Empty>Nessun documento generato: usa "Genera DOCX e PDF".</Empty> : (
             <table className="t"><thead><tr><th>Versione</th><th>Generato</th><th className="num">Azioni</th></tr></thead>
               <tbody>{l.documents.map((doc) => <tr key={doc.id}><td className="strong">v{doc.version}{(doc.missing || []).length > 0 && <div className="small" style={{ color: '#9a5b00', fontWeight: 400 }}>segnaposto: {doc.missing.join(', ').toLowerCase()}</div>}</td><td className="small muted">{itDateTime(doc.generated_at)}</td><td className="num">{doc.has_pdf && <button className="btn sm ghost" onClick={() => setPreview(doc)}>Anteprima</button>} {doc.has_pdf && <a className="btn sm ghost" href={`/api/documents/${doc.id}/download?format=pdf`}>PDF</a>} <a className="btn sm ghost" href={`/api/documents/${doc.id}/download?format=docx`}>DOCX</a></td></tr>)}</tbody></table>
+          )}
+        </Card>
+        <Card title="Lettera di impegno firmata" className="span2" actions={writer && l.status !== 'CONVERTITA' ? <><button className="btn sm" onClick={() => fileRef.current?.click()}>Carica lettera firmata</button><input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png" style={{ display: 'none' }} onChange={uploadSigned} /></> : null}>
+          {!(l.signed_files || []).length ? <Empty>Nessuna copia firmata caricata. Caricando il PDF firmato dal candidato la lettera passa in stato "Accettata" e il file finisce nel dossier della risorsa.</Empty> : (
+            <table className="t"><thead><tr><th>File</th><th>Data firma</th><th>Caricato</th><th className="num">Azioni</th></tr></thead>
+              <tbody>{l.signed_files.map((a) => <tr key={a.id}><td className="strong">{a.filename}</td><td>{a.issued_at ? itDate(a.issued_at) : '–'}</td><td className="small muted">{itDateTime(a.uploaded_at)}{a.uploaded_by_name ? ` · ${a.uploaded_by_name}` : ''}</td><td className="num"><a className="btn sm ghost" href={`/api/resources/${l.resource_id}/attachments/${a.id}/download`}>Apri</a></td></tr>)}</tbody></table>
           )}
         </Card>
       </div>
