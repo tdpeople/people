@@ -16,6 +16,7 @@ export default function ResourceDetail() {
   const { user } = useAuth();
   const toast = useToast();
   const d = useApi(`/resources/${id}`);
+  const siblings = useApi(d.data ? `/resources?kind=${d.data.resource.kind}` : null, [d.data?.resource?.kind]);
   const [tab, setTab] = useState('scheda');
   const [modal, setModal] = useState(null);
   const [preview, setPreview] = useState(null);
@@ -44,6 +45,7 @@ export default function ResourceDetail() {
           {writer && isEmp && e?.mbo_enabled && <button className="btn ghost" onClick={() => generate('MBO')}><Icon name="file" />Genera MBO</button>}
           {writer && !isEmp && lp && <button className="btn" onClick={() => generate('CONTRATTO_LP')}><Icon name="file" />Genera contratto LP</button>}
           {writer && <button className="btn ghost" onClick={() => setModal('person')}><Icon name="edit" />Modifica anagrafica</button>}
+          <PrevNext list={siblings.data} id={r.id} />
         </div>
       </div>
 
@@ -343,5 +345,26 @@ function TerminateModal({ r, onClose, onSaved }) {
       </div>
       <p className="small muted" style={{ marginTop: 8 }}>La data di fine viene riportata anche sul {isLp ? 'contratto di incarico' : 'rapporto di lavoro'}; il dossier e i documenti restano consultabili.</p>
     </Modal>
+  );
+}
+
+// Scorrimento tra le schede nell'ordine dell'elenco della sezione (cognome, nome)
+function PrevNext({ list, id }) {
+  const nav = useNavigate();
+  const items = list || [];
+  const i = items.findIndex((x) => x.id === id);
+  const prev = i > 0 ? items[i - 1] : null;
+  const next = i >= 0 && i < items.length - 1 ? items[i + 1] : null;
+  React.useEffect(() => {
+    const h = (ev) => { if (!ev.altKey || ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) return; if (ev.key === 'ArrowLeft' && prev) nav(`/risorse/${prev.id}`); if (ev.key === 'ArrowRight' && next) nav(`/risorse/${next.id}`); };
+    window.addEventListener('keydown', h); return () => window.removeEventListener('keydown', h);
+  }, [prev?.id, next?.id]);
+  if (!items.length) return null;
+  return (
+    <div className="prevnext" title="Scorri le schede nell'ordine dell'elenco (Alt + frecce)">
+      <button className="iconbtn nav" disabled={!prev} title={prev ? `${prev.last_name} ${prev.first_name}` : ''} onClick={() => prev && nav(`/risorse/${prev.id}`)} aria-label="Scheda precedente"><Icon name="arrow" /></button>
+      <span className="small muted">{i + 1}/{items.length}</span>
+      <button className="iconbtn nav" disabled={!next} title={next ? `${next.last_name} ${next.first_name}` : ''} onClick={() => next && nav(`/risorse/${next.id}`)} aria-label="Scheda successiva"><Icon name="arrow" /></button>
+    </div>
   );
 }
