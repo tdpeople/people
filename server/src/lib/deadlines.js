@@ -4,6 +4,7 @@ import { CATEGORY_LABELS } from './seedData.js';
 
 const addDays = (iso, n) => { const d = new Date(`${iso}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 const today = () => new Date().toISOString().slice(0, 10);
+export const TERMINATION_LABELS = { DIMISSIONI: 'Dimissioni', LICENZIAMENTO: 'Licenziamento', SCADENZA_TERMINE: 'Scadenza del termine', RISOLUZIONE_CONSENSUALE: 'Risoluzione consensuale', PENSIONAMENTO: 'Pensionamento', FINE_INCARICO: 'Fine incarico professionale', RECESSO: 'Recesso dall\'incarico', ALTRO: 'Altro' };
 
 export async function computeDeadlines({ resourceId = null, horizonDays = 365 } = {}) {
   const P = resourceId ? [resourceId] : [];
@@ -14,6 +15,10 @@ export async function computeDeadlines({ resourceId = null, horizonDays = 365 } 
   // Allegati con scadenza
   const att = await many(`SELECT a.id, a.category, a.filename, a.expires_at, r.id, r.last_name, r.first_name, r.kind FROM attachments a JOIN resources r ON r.id=a.resource_id WHERE a.expires_at IS NOT NULL AND ${where}`, P);
   for (const a of att) items.push({ ...base(a), type: 'DOCUMENTO', title: `Scadenza ${CATEGORY_LABELS[a.category] || a.category}`, detail: a.filename, due_date: a.expires_at, ref: { attachment_id: a.id } });
+
+  // Cessazioni programmate (decorrenza futura)
+  const term = await many(`SELECT r.id, r.last_name, r.first_name, r.kind, r.terminated_at, r.termination_reason FROM resources r WHERE r.terminated_at IS NOT NULL AND r.terminated_at >= CURRENT_DATE AND ${where}`, P);
+  for (const t of term) items.push({ ...base(t), type: 'CONTRATTO', title: 'Cessazione del rapporto', detail: TERMINATION_LABELS[t.termination_reason] || t.termination_reason || '', due_date: t.terminated_at });
 
   // Dipendenti: prova, fine contratto, scatti RAL, MBO
   const emp = await many(`SELECT e.*, r.id, r.last_name, r.first_name, r.kind FROM employments e JOIN resources r ON r.id=e.resource_id WHERE ${where}`, P);

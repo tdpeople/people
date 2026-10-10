@@ -4,7 +4,7 @@ import { api } from '../api.js';
 import { useAuth, canWrite, isAdmin, seesCosts } from '../auth.jsx';
 import { useApi, Card, Field, ErrorBox, Loading, Empty, Badge, KindBadge, StatusBadge, Modal, PromptModal, ConfirmModal, useToast, Icon } from '../components/ui.jsx';
 import { PersonForm, EmploymentForm, LpForm } from '../components/forms.jsx';
-import { eur, itDate, itDateTime, bytes, age, CONTRACT, LEVEL_LABEL, LETTER_STATUS, DEADLINE_STATE, FEE_TYPE, SEX } from '../format.js';
+import { eur, itDate, itDateTime, bytes, age, CONTRACT, LEVEL_LABEL, LETTER_STATUS, DEADLINE_STATE, FEE_TYPE, SEX, TERMINATION_LABEL, today } from '../format.js';
 
 const DOC_LABEL = { CONTRATTO: 'Lettera di assunzione', MBO: 'Piano MBO', LETTERA_IMPEGNO: 'Lettera di impegno', CONTRATTO_LP: 'Contratto LP' };
 
@@ -66,11 +66,12 @@ export default function ResourceDetail() {
             <Row k="Approva ferie e permessi" v={r.approver_id ? <Link to={`/risorse/${r.approver_id}`}>{r.approver_name}</Link> : r.manager_id ? <span>{r.manager_name} <span className="small muted">(responsabile)</span></span> : null} />
             {(d.data.org_units || []).length > 0 && <Row k="Nell'organigramma" v={<Link to="/organigramma">{d.data.org_units.map((u) => `${u.role_title || 'Responsabile'} · ${u.name}`).join('; ')}</Link>} />}
             <Row k="Ingresso" v={itDate(r.hired_at)} />
-            <Row k="Cessazione" v={itDate(r.terminated_at)} />
+            <Row k="Cessazione" v={r.terminated_at ? `${r.status === 'CESSATO' ? 'dal' : 'programmata dal'} ${itDate(r.terminated_at)}${r.termination_reason ? ` · ${TERMINATION_LABEL[r.termination_reason] || r.termination_reason}` : ''}${r.termination_notes ? ` · ${r.termination_notes}` : ''}` : null} />
             {r.cv_attachment_id && <Row k="CV" v={<a href={`/api/resources/${id}/attachments/${r.cv_attachment_id}/download?inline=1`} target="_blank" rel="noreferrer">Apri CV</a>} />}
             {r.notes && <p className="small muted" style={{ marginTop: 10, whiteSpace: 'pre-wrap' }}>{r.notes}</p>}
             {writer && <div className="row" style={{ marginTop: 12 }}>
-              {r.status !== 'CESSATO' && <button className="btn sm danger" onClick={() => setModal('cessa')}>Registra cessazione</button>}
+              {r.status !== 'CESSATO' && !r.terminated_at && <button className="btn sm danger" onClick={() => setModal('cessa')}>Registra cessazione</button>}
+              {r.terminated_at && <button className="btn sm ghost" onClick={async () => { await api.put(`/resources/${id}/reactivate`, {}); toast('Cessazione annullata'); d.reload(); }}>Annulla cessazione</button>}
               {r.status === 'CESSATO' && <button className="btn sm ghost" onClick={() => setStatus('ATTIVO')}>Riattiva</button>}
               {r.status === 'IMPEGNO' && <button className="btn sm" onClick={() => setStatus('ATTIVO')}>Segna come attivo</button>}
               {isAdmin(user) && <button className="btn sm danger" onClick={() => setModal('delete')}>Elimina</button>}
@@ -217,7 +218,7 @@ export default function ResourceDetail() {
       {modal?.delAtt && <ConfirmModal danger title="Elimina allegato" text={`Eliminare "${modal.delAtt.filename}" dal dossier? L'operazione è definitiva.`} confirmText="Elimina" onClose={() => setModal(null)} onConfirm={async () => { await api.del(`/resources/${id}/attachments/${modal.delAtt.id}`); d.reload(); }} />}
       {modal?.delDoc && <ConfirmModal danger title="Elimina documento generato" text={`Eliminare "${modal.delDoc.title}" v${modal.delDoc.version}?`} confirmText="Elimina" onClose={() => setModal(null)} onConfirm={async () => { await api.del(`/documents/${modal.delDoc.id}`); d.reload(); }} />}
       {modal === 'deadline' && <DeadlineModal id={id} onClose={() => setModal(null)} onSaved={() => { setModal(null); d.reload(); }} />}
-      {modal === 'cessa' && <PromptModal danger title="Registra cessazione" label="Motivazione / note" confirmText="Registra cessazione" onClose={() => setModal(null)} onConfirm={async (reason) => { await api.put(`/resources/${id}`, { status: 'CESSATO', terminated_at: new Date().toISOString().slice(0, 10), notes: `${r.notes ? `${r.notes}\n` : ''}Cessazione ${itDate(new Date().toISOString())}: ${reason}` }); d.reload(); }} />}
+      {modal === 'cessa' && <TerminateModal r={r} onClose={() => setModal(null)} onSaved={() => { setModal(null); d.reload(); }} />}
       {modal === 'delete' && <PromptModal danger title="Elimina risorsa" label="Motivazione (tracciata nel registro)" confirmText="Elimina definitivamente" onClose={() => setModal(null)} onConfirm={async (reason) => { await api.del(`/resources/${id}`, { reason }); nav('/risorse'); }} />}
       {preview && (
         <Modal title={preview.title} onClose={() => setPreview(null)} wide>
@@ -319,4 +320,24 @@ function DeadlineModal({ id, onClose, onSaved }) {
     <ErrorBox error={err} />
     <div className="form-grid"><Field label="Titolo" className="span2"><input value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} /></Field><Field label="Data"><input type="date" value={f.due_date} onChange={(e) => setF({ ...f, due_date: e.target.value })} /></Field><Field label="Note" className="span2"><input value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} /></Field></div>
   </Modal>;
+}
+
+function TerminateModal({ r, onClose, onSaved }) {
+  const isLp = r.kind === 'LP';
+  const [f, setF] = useState({ terminated_at: today(), reason: isLp ? 'FINE_INCARICO' : 'DIMISSIONI', notes: '' });
+  const [err, setErr] = useState(null);
+  const reasons = isLp ? ['FINE_INCARICO', 'RECESSO', 'SCADENZA_TERMINE', 'RISOLUZIONE_CONSENSUALE', 'ALTRO'] : ['DIMISSIONI', 'LICENZIAMENTO', 'SCADENZA_TERMINE', 'RISOLUZIONE_CONSENSUALE', 'PENSIONAMENTO', 'ALTRO'];
+  const future = f.terminated_at > today();
+  const save = async () => { try { await api.put(`/resources/${r.id}/terminate`, { terminated_at: f.terminated_at, reason: f.reason, notes: f.notes || null }); onSaved(); } catch (e) { setErr(e); } };
+  return (
+    <Modal title="Registra cessazione" onClose={onClose} footer={<><button className="btn ghost" onClick={onClose}>Annulla</button><button className="btn danger" disabled={!f.terminated_at} onClick={save}>Registra cessazione</button></>}>
+      <ErrorBox error={err} />
+      <div className="form-grid">
+        <Field label="Decorrenza della cessazione" help={future ? 'Data futura: la risorsa resta attiva fino a quel giorno e la cessazione compare nel calendario scadenze' : 'Ultimo giorno di rapporto'}><input type="date" value={f.terminated_at} onChange={(e) => setF({ ...f, terminated_at: e.target.value })} /></Field>
+        <Field label="Motivo"><select value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })}>{reasons.map((k) => <option key={k} value={k}>{TERMINATION_LABEL[k]}</option>)}</select></Field>
+        <Field label="Note" className="span2"><textarea value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} placeholder="es. preavviso lavorato fino al…, accordo del…, TFR da liquidare" /></Field>
+      </div>
+      <p className="small muted" style={{ marginTop: 8 }}>La data di fine viene riportata anche sul {isLp ? 'contratto di incarico' : 'rapporto di lavoro'}; il dossier e i documenti restano consultabili.</p>
+    </Modal>
+  );
 }

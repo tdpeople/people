@@ -179,6 +179,7 @@ const LIST_SQL = `SELECT r.*, a.name AS area_name, m.last_name || ' ' || m.first
   LEFT JOIN lp_contracts l ON l.resource_id=r.id`;
 
 r.get('/', ah(async (req, res) => {
+  await q("UPDATE resources SET status='CESSATO', updated_at=now() WHERE terminated_at IS NOT NULL AND terminated_at <= CURRENT_DATE AND status IN ('ATTIVO','IMPEGNO')"); // cessazioni con decorrenza raggiunta
   const P = new Params();
   const w = ['TRUE'];
   if (req.query.kind) w.push(`r.kind = ${P.add(req.query.kind)}`);
@@ -275,6 +276,30 @@ r.put('/:id/lp', requireWrite, ah(async (req, res) => {
   await tx((c) => upsertLp(c, id, l));
   if (l.start_date) await q('UPDATE resources SET hired_at=$2, updated_at=now() WHERE id=$1', [id, l.start_date]);
   await audit(req, 'LP_UPDATE', 'resource', id, { discipline: l.discipline, start_date: l.start_date });
+  res.json({ ok: true });
+}));
+
+// Cessazione del rapporto: decorrenza, motivo, note. Se la decorrenza è futura la risorsa resta attiva fino a quel giorno (lo stato viene allineato all'avvio e dalla scheda).
+const TERMINATION_REASONS = ['DIMISSIONI', 'LICENZIAMENTO', 'SCADENZA_TERMINE', 'RISOLUZIONE_CONSENSUALE', 'PENSIONAMENTO', 'FINE_INCARICO', 'RECESSO', 'ALTRO'];
+r.put('/:id/terminate', requireWrite, ah(async (req, res) => {
+  const id = Number(req.params.id);
+  const cur = await one('SELECT id, kind, status FROM resources WHERE id=$1', [id]);
+  if (!cur) throw notFound();
+  const d = parse(z.object({ terminated_at: z.string().regex(dateRe), reason: z.enum(TERMINATION_REASONS), notes: opt(z.string().max(2000)) }), req.body);
+  const today = new Date().toISOString().slice(0, 10);
+  const status = d.terminated_at <= today ? 'CESSATO' : cur.status;
+  await tx(async (c) => {
+    await c.query('UPDATE resources SET status=$2, terminated_at=$3, termination_reason=$4, termination_notes=$5, updated_at=now() WHERE id=$1', [id, status, d.terminated_at, d.reason, d.notes ?? null]);
+    if (cur.kind === 'DIPENDENTE') await c.query('UPDATE employments SET end_date=$2, updated_at=now() WHERE resource_id=$1', [id, d.terminated_at]);
+    else await c.query('UPDATE lp_contracts SET end_date=$2, updated_at=now() WHERE resource_id=$1', [id, d.terminated_at]);
+  });
+  await audit(req, 'RESOURCE_TERMINATE', 'resource', id, { terminated_at: d.terminated_at, reason: d.reason });
+  res.json({ ok: true, status, terminated_at: d.terminated_at });
+}));
+r.put('/:id/reactivate', requireWrite, ah(async (req, res) => {
+  const id = Number(req.params.id);
+  await q("UPDATE resources SET status='ATTIVO', terminated_at=NULL, termination_reason=NULL, termination_notes=NULL, updated_at=now() WHERE id=$1", [id]);
+  await audit(req, 'RESOURCE_REACTIVATE', 'resource', id);
   res.json({ ok: true });
 }));
 

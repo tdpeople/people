@@ -33,3 +33,5 @@ export const CV_STATUS = { NUOVO: { label: 'Nuovo', tone: 'blue' }, IN_VALUTAZIO
 export const DEADLINE_STATE = { SCADUTA: 'red', IMMINENTE: 'mauve', PROSSIMA: 'blue', PIANIFICATA: 'grey' };
 export const FEE_TYPE = { FISSO: 'Fisso mensile', ORARIO: 'A ore', PRESTAZIONE: 'A prestazione', VARIABILE: '% sul fatturato' };
 export const SEX = { F: 'Donna', M: 'Uomo' };
+
+export const TERMINATION_LABEL = { DIMISSIONI: 'Dimissioni', LICENZIAMENTO: 'Licenziamento', SCADENZA_TERMINE: 'Scadenza del termine', RISOLUZIONE_CONSENSUALE: 'Risoluzione consensuale', PENSIONAMENTO: 'Pensionamento', FINE_INCARICO: 'Fine incarico professionale', RECESSO: 'Recesso dall\'incarico', ALTRO: 'Altro' };
