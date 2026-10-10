@@ -108,20 +108,22 @@ export function MboEditor({ value = [], onChange }) {
 // Dati del rapporto di lavoro subordinato (contratto) o della lettera di impegno (subset)
 export function EmploymentForm({ value: v, onChange, letter = false, sites = [] }) {
   const s = set(v, onChange);
+  const isDir = v.contract_type === 'DIRIGENTE';
   const [sim, setSim] = useState(null);
   useEffect(() => {
-    if (!v.ral || !v.level || v.contract_type === 'DIRIGENTE') { setSim(null); return; }
-    const t = setTimeout(() => api.post('/ccnl/simulate', { ral: Number(v.ral), level: v.level, monthly_payments: Number(v.monthly_payments || 14), at_date: v.start_date || null, contract_type: v.contract_type || 'TIND', weekly_hours: Number(v.weekly_hours || 40) }).then(setSim).catch(() => setSim(null)), 350);
+    if (!v.ral || (!v.level && !isDir)) { setSim(null); return; }
+    const t = setTimeout(() => api.post('/ccnl/simulate', { ral: Number(v.ral), level: isDir ? null : v.level, monthly_payments: Number(v.monthly_payments || 14), at_date: v.start_date || null, contract_type: v.contract_type || 'TIND', weekly_hours: Number(v.weekly_hours || 40) }).then(setSim).catch(() => setSim(null)), 350);
     return () => clearTimeout(t);
   }, [v.ral, v.level, v.monthly_payments, v.start_date, v.contract_type, v.weekly_hours]);
   const applyDecomp = () => sim && onChange({ ...v, base_pay: sim.decomposition.base_pay, superminimo: sim.decomposition.superminimo, function_allowance: sim.decomposition.function_allowance });
   return (
     <>
       <div className="form-grid">
-        <Field label="Tipologia contratto"><select value={v.contract_type || 'TIND'} onChange={(e) => s('contract_type', e.target.value)}>{Object.entries(CONTRACT).filter(([k]) => !letter || k !== 'DIRIGENTE').map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></Field>
-        <Field label="Livello di ingresso"><select value={v.level || ''} onChange={(e) => s('level', e.target.value)}><option value="">–</option>{LEVELS.map((l) => <option key={l} value={l}>{LEVEL_LABEL[l]}</option>)}</select></Field>
-        <Field label="Qualifica"><input value={v.qualification || ''} placeholder={v.level === 'Q' ? 'Quadro' : 'Impiegato'} onChange={(e) => s('qualification', e.target.value)} /></Field>
-        <Field label="Mansione" className="span2"><input value={v.job_title || ''} onChange={(e) => s('job_title', e.target.value)} /></Field>
+        <Field label="Tipologia contratto" help={isDir ? 'CCNL Dirigenti Industria: nessun livello, 13 mensilità, FASI e Previndai, minimo contrattuale di garanzia + superminimo ad personam' : ''}><select value={v.contract_type || 'TIND'} onChange={(e) => e.target.value === 'DIRIGENTE' ? onChange({ ...v, contract_type: 'DIRIGENTE', level: 'DIRIGENTE', qualification: 'Dirigente', monthly_payments: 13, probation: 'Non richiesto', autonomous_hours: true, weekly_days: 5 }) : s('contract_type', e.target.value)}>{Object.entries(CONTRACT).filter(([k]) => !letter || k !== 'DIRIGENTE').map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></Field>
+        {isDir ? <Field label="Qualifica"><input value="Dirigente" disabled /></Field> : <Field label="Livello di ingresso"><select value={v.level || ''} onChange={(e) => s('level', e.target.value)}><option value="">–</option>{LEVELS.map((l) => <option key={l} value={l}>{LEVEL_LABEL[l]}</option>)}</select></Field>}
+        {!isDir && <Field label="Qualifica"><input value={v.qualification || ''} placeholder={v.level === 'Q' ? 'Quadro' : 'Impiegato'} onChange={(e) => s('qualification', e.target.value)} /></Field>}
+        {isDir && <Field label="Riporta a" help="Compare nella lettera: 'Lei riporterà …'"><input value={v.reports_to || ''} placeholder="al Presidente del Consiglio di Amministrazione della scrivente Società" onChange={(e) => s('reports_to', e.target.value)} /></Field>}
+        <Field label={isDir ? 'Ruolo e funzione' : 'Mansione'} className="span2"><input value={v.job_title || ''} onChange={(e) => s('job_title', e.target.value)} /></Field>
         <Field label={letter ? 'Decorrenza: non oltre il' : 'Decorrenza (data assunzione)'}><input type="date" value={(letter ? v.start_by : v.start_date) || ''} onChange={(e) => s(letter ? 'start_by' : 'start_date', e.target.value)} /></Field>
         {letter && <Field label="Validità della proposta sino al"><input type="date" value={v.valid_until || ''} onChange={(e) => s('valid_until', e.target.value)} /></Field>}
         {!letter && (v.contract_type === 'TDET' || v.contract_type === 'APPRENDISTATO') && <Field label={v.contract_type === 'APPRENDISTATO' ? 'Fine periodo formativo' : 'Scadenza contratto'}><input type="date" value={v.end_date || ''} onChange={(e) => s('end_date', e.target.value)} /></Field>}
@@ -138,7 +140,7 @@ export function EmploymentForm({ value: v, onChange, letter = false, sites = [] 
       </div>
       {!letter && sim && (
         <div className="alert info" style={{ marginTop: 12, display: 'block' }}>
-          <b>Scomposizione CCNL</b> (minimo tabellare livello {v.level} dal {sim.minimum?.valid_from ? sim.minimum.valid_from.split('-').reverse().join('/') : '–'}): paga base {eur(sim.decomposition.base_pay)} · superminimo {eur(sim.decomposition.superminimo)} · indennità di funzione {eur(sim.decomposition.function_allowance)} · lordo mensile {eur(sim.decomposition.ral_monthly)}.
+          <b>Scomposizione CCNL</b> {isDir ? `(minimo contrattuale di garanzia dirigenti ${eur(sim.decomposition.minimum_annual)} annui)` : null}{!isDir && <>(minimo tabellare livello {v.level} dal {sim.minimum?.valid_from ? sim.minimum.valid_from.split('-').reverse().join('/') : '–'})</>}: paga base {eur(sim.decomposition.base_pay)} · superminimo {eur(sim.decomposition.superminimo)}{!isDir && <> · indennità di funzione {eur(sim.decomposition.function_allowance)}</>} · lordo mensile {eur(sim.decomposition.ral_monthly)}.
           Costo azienda stimato {eur(sim.cost.annual)}/anno (coeff. {sim.cost.coefficient}).
           <button type="button" className="btn sm ghost" style={{ marginLeft: 10 }} onClick={applyDecomp}>Usa nel contratto</button>
         </div>
@@ -156,7 +158,8 @@ export function EmploymentForm({ value: v, onChange, letter = false, sites = [] 
       <div className="subhead">MBO</div>
       <div className="row">
         <label className="f inline"><input type="checkbox" checked={Boolean(v.mbo_enabled)} onChange={(e) => s('mbo_enabled', e.target.checked)} /> MBO previsto</label>
-        {v.mbo_enabled && <Field label="Premio massimo (% RAL)"><input type="number" step="0.5" value={v.mbo_pct ?? ''} onChange={(e) => s('mbo_pct', e.target.value === '' ? null : Number(e.target.value))} style={{ width: 120 }} /></Field>}
+        {v.mbo_enabled && <Field label="Premio massimo (% RAL)"><input type="number" step="0.5" min="0" max="100" value={v.mbo_pct ?? ''} onChange={(e) => s('mbo_pct', e.target.value === '' ? null : Number(e.target.value))} style={{ width: 120 }} /></Field>}
+        {v.mbo_enabled && isDir && !letter && <Field label="oppure premio in cifra fissa (€/anno)" help="Se valorizzato prevale sulla percentuale"><MoneyInput value={v.mbo_amount ?? ''} onChange={(x) => s('mbo_amount', x)} /></Field>}
         {v.mbo_enabled && !letter && <Field label="Esercizio"><input type="number" value={v.mbo_year ?? new Date().getFullYear()} onChange={(e) => s('mbo_year', Number(e.target.value))} style={{ width: 110 }} /></Field>}
       </div>
       {v.mbo_enabled && !letter && <div style={{ marginTop: 10 }}><MboEditor value={v.mbo_objectives || []} onChange={(x) => s('mbo_objectives', x)} /></div>}

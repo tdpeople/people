@@ -40,7 +40,7 @@ export default function ResourceDetail() {
           <div className="sub">{isEmp ? `${r.job_title || 'Mansione n.d.'}${r.level ? ` · ${LEVEL_LABEL[r.level] || r.level}` : ''}${r.contract_type ? ` · ${CONTRACT[r.contract_type]}` : ''}` : `${r.discipline || 'Disciplina n.d.'} · libero professionista`}{r.manager_name ? ` · riporta a ${r.manager_name}` : ''}</div>
         </div>
         <div className="row">
-          {writer && isEmp && e && e.contract_type !== 'DIRIGENTE' && <button className="btn" onClick={() => generate('CONTRATTO')}><Icon name="file" />Genera contratto</button>}
+          {writer && isEmp && e && <button className="btn" onClick={() => generate('CONTRATTO')}><Icon name="file" />Genera contratto</button>}
           {writer && isEmp && e?.mbo_enabled && <button className="btn ghost" onClick={() => generate('MBO')}><Icon name="file" />Genera MBO</button>}
           {writer && !isEmp && lp && <button className="btn" onClick={() => generate('CONTRATTO_LP')}><Icon name="file" />Genera contratto LP</button>}
           {writer && <button className="btn ghost" onClick={() => setModal('person')}><Icon name="edit" />Modifica anagrafica</button>}
@@ -120,7 +120,7 @@ export default function ResourceDetail() {
                   <Row k="Paga base" v={eur(e.base_pay ?? payroll?.decomposition.base_pay)} />
                   <Row k={e.superminimo_absorbable ? 'Superminimo assorbibile' : 'Superminimo non assorbibile'} v={eur(e.superminimo ?? payroll?.decomposition.superminimo)} />
                   <Row k="Indennità di funzione" v={eur(e.function_allowance ?? payroll?.decomposition.function_allowance)} />
-                  {e.mbo_enabled && <Row k="MBO" v={`${e.mbo_pct}% RAL · esercizio ${e.mbo_year || ''} · max ${eur(r.cost_mbo_max)}`} />}
+                  {e.mbo_enabled && <Row k="MBO" v={`${e.mbo_amount ? `${eur(e.mbo_amount)} annui (cifra fissa)` : `${e.mbo_pct ?? '–'}% RAL`} · esercizio ${e.mbo_year || ''}${r.cost_mbo_max ? ` · costo azienda max ${eur(r.cost_mbo_max)}` : ''}`} />}
                   <div className="totals" style={{ marginTop: 12 }}>
                     <div className="line"><span>Coefficiente di costo</span><span>{r.cost_coefficient_used}</span></div>
                     <div className="big"><span>Costo annuo</span><span className="v">{eur(r.cost_annual)}</span></div>

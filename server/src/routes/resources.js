@@ -6,7 +6,8 @@ import { one, many, q, tx } from '../db.js';
 import { ah, bad, notFound, audit, parse } from '../lib/util.js';
 import { requireWrite, requireRole, Params } from '../lib/access.js';
 import { config } from '../config.js';
-import { getSettings, decompose, costCoefficient, companyCost, minimumFor, ralAt } from '../lib/payroll.js';
+import { parseDocument, ocrAvailable } from '../lib/contractParse.js';
+import { getSettings, decompose, decomposeDirigente, costCoefficient, companyCost, minimumFor, ralAt } from '../lib/payroll.js';
 import { computeDeadlines, missingDocuments } from '../lib/deadlines.js';
 import { CATEGORY_LABELS } from '../lib/seedData.js';
 
@@ -66,7 +67,8 @@ export const employmentSchema = z.object({
   benefits: z.array(z.string().max(200)).default([]),
   smart_working: z.boolean().default(false),
   mbo_enabled: z.boolean().default(false),
-  mbo_pct: num(),
+  mbo_pct: num().refine((v) => v == null || (v >= 0 && v <= 100), 'La percentuale MBO deve essere tra 0 e 100'),
+  mbo_amount: num(),
   mbo_year: num(),
   mbo_objectives: z.array(z.object({ area: z.string().max(120), objective: z.string().max(400), kpi: z.string().max(200), target: z.string().max(100), weight: num() })).default([]),
   mbo_individual: opt(z.string().max(400)),
@@ -75,6 +77,8 @@ export const employmentSchema = z.object({
   letter_date: optDate(),
   exit_fee: z.boolean().default(false),
   unilav_ref: opt(z.string().max(80)),
+  reports_to: opt(z.string().max(300)),
+  imported_from: opt(z.string().max(200)),
   notes: opt(z.string().max(4000)),
 });
 
@@ -112,6 +116,13 @@ function lpMonthlyEstimate(lp) {
 
 export async function upsertEmployment(c, id, e) {
   const data = { ...e };
+  if (data.contract_type === 'DIRIGENTE') {
+    const S = await getSettings();
+    data.level = 'DIRIGENTE'; data.ccnl = 'DIRIGENTI_INDUSTRIA'; data.qualification = data.qualification || 'Dirigente';
+    if (!data.monthly_payments || data.monthly_payments === 14) data.monthly_payments = Number(S.dirigenti_monthly_payments || 13);
+    if (data.ral && !data.base_pay) { const dec = decomposeDirigente(data.ral, S, data.monthly_payments); data.base_pay = dec.base_pay; data.superminimo = dec.superminimo; data.function_allowance = 0; }
+    if (!data.probation) data.probation = 'Non richiesto';
+  }
   if (data.ral && !data.base_pay && data.level && data.contract_type !== 'DIRIGENTE') {
     const m = await minimumFor(data.level, data.start_date);
     const S = await getSettings();
@@ -143,7 +154,8 @@ async function enrich(rows, S) {
     if (x.kind === 'DIPENDENTE') {
       const coef = costCoefficient(S, x);
       const ral = ralAt(x);
-      const cost = companyCost(ral, coef, x.mbo_enabled ? x.mbo_pct : 0);
+      const mboPct = x.mbo_enabled ? (Number(x.mbo_amount) > 0 && ral ? Number(x.mbo_amount) / ral * 100 : x.mbo_pct) : 0;
+      const cost = companyCost(ral, coef, mboPct);
       return { ...x, ral_current: ral, cost_coefficient_used: coef, cost_annual: cost.annual, cost_monthly: cost.monthly, cost_mbo_max: cost.mbo_max };
     }
     if (x.kind === 'LP') {
@@ -155,7 +167,7 @@ async function enrich(rows, S) {
 }
 
 const LIST_SQL = `SELECT r.*, a.name AS area_name, m.last_name || ' ' || m.first_name AS manager_name,
-    e.contract_type, e.level, e.job_title, e.ral, e.ral_steps, e.monthly_payments, e.weekly_hours, e.start_date AS emp_start, e.probation_end, e.mbo_enabled, e.mbo_pct, e.cost_coefficient, e.end_date AS emp_end,
+    e.contract_type, e.level, e.job_title, e.ral, e.ral_steps, e.monthly_payments, e.weekly_hours, e.start_date AS emp_start, e.probation_end, e.mbo_enabled, e.mbo_pct, e.mbo_amount, e.cost_coefficient, e.end_date AS emp_end,
     l.discipline, l.start_date AS lp_start, l.end_date AS lp_end, l.est_monthly_cost, l.insurance_expiry,
     (SELECT count(*)::int FROM attachments t WHERE t.resource_id=r.id) AS attachments_count,
     (SELECT count(*)::int FROM generated_documents g WHERE g.resource_id=r.id) AS documents_count
@@ -204,6 +216,15 @@ r.get('/:id', ah(async (req, res) => {
   res.json({ resource: res_, employment, lp, letters, documents, attachments, deadlines, checklist, payroll, org_units, category_labels: CATEGORY_LABELS });
 }));
 
+// Lettura di un contratto/MBO/UNILAV già esistente: restituisce i dati per precompilare il percorso di inserimento
+r.post('/parse-document', requireWrite, upload.single('file'), ah(async (req, res) => {
+  if (!req.file) throw bad('File mancante');
+  const filename = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+  const out = await parseDocument(req.file.buffer, req.file.mimetype, filename);
+  await audit(req, 'DOCUMENT_PARSE', 'resource', null, { filename, detected: out.detected, method: out.method });
+  res.json({ ...out, filename, ocr_available: await ocrAvailable() });
+}));
+
 r.post('/', requireWrite, ah(async (req, res) => {
   const person = parse(personSchema, req.body.person || {});
   const employment = person.kind === 'DIPENDENTE' && req.body.employment ? parse(employmentSchema, req.body.employment) : null;
@@ -233,7 +254,11 @@ r.put('/:id/employment', requireWrite, ah(async (req, res) => {
   const rsrc = await one('SELECT kind FROM resources WHERE id=$1', [id]);
   if (!rsrc) throw notFound();
   if (rsrc.kind !== 'DIPENDENTE') throw bad('La risorsa non è un dipendente');
-  const e = parse(employmentSchema, req.body);
+  // aggiornamento parziale: i campi non inviati restano quelli salvati (i default dello schema non li sovrascrivono)
+  const cur = await one('SELECT * FROM employments WHERE resource_id=$1', [id]);
+  const base = {}; if (cur) for (const k of EMP_COLS) if (cur[k] !== null && cur[k] !== undefined) base[k] = typeof cur[k] === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(cur[k]) ? cur[k] : cur[k];
+  const e = parse(employmentSchema, { ...base, ...req.body });
+  if (req.body.base_pay === undefined && (req.body.ral !== undefined || req.body.level !== undefined)) { delete e.base_pay; delete e.superminimo; delete e.function_allowance; } // RAL o livello cambiati: ricalcolo
   await tx((c) => upsertEmployment(c, id, e));
   if (e.start_date) await q('UPDATE resources SET hired_at=$2, updated_at=now() WHERE id=$1', [id, e.start_date]);
   await audit(req, 'EMPLOYMENT_UPDATE', 'resource', id, { ral: e.ral, level: e.level, job_title: e.job_title });

@@ -9,7 +9,7 @@ const r2 = (n) => Math.round(n * 100) / 100;
 
 async function headcount() {
   const rows = await many(`SELECT r.id, r.kind, r.status, r.sex, r.area_id, a.name AS area_name, r.last_name, r.first_name, r.hired_at, r.birth_date,
-      e.contract_type, e.level, e.job_title, e.ral, e.ral_steps, e.mbo_enabled, e.mbo_pct, e.cost_coefficient, e.weekly_hours,
+      e.contract_type, e.level, e.job_title, e.ral, e.ral_steps, e.mbo_enabled, e.mbo_pct, e.mbo_amount, e.cost_coefficient, e.weekly_hours,
       l.discipline, l.est_monthly_cost, l.fees
     FROM resources r LEFT JOIN areas a ON a.id=r.area_id LEFT JOIN employments e ON e.resource_id=r.id LEFT JOIN lp_contracts l ON l.resource_id=r.id
     WHERE r.status IN ('ATTIVO','IMPEGNO') ORDER BY r.last_name, r.first_name`);
@@ -18,7 +18,7 @@ async function headcount() {
     let annual = 0; let monthly = 0; let mbo = 0; let ral = null;
     if (x.kind === 'DIPENDENTE') {
       ral = ralAt(x);
-      const c = companyCost(ral, costCoefficient(S, x), x.mbo_enabled ? x.mbo_pct : 0);
+      const c = companyCost(ral, costCoefficient(S, x), x.mbo_enabled ? (Number(x.mbo_amount) > 0 && ral ? Number(x.mbo_amount) / ral * 100 : x.mbo_pct) : 0);
       annual = c.annual; monthly = c.monthly; mbo = c.mbo_max;
     } else {
       monthly = Number(x.est_monthly_cost || 0); annual = r2(monthly * 12);

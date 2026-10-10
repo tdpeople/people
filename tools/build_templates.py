@@ -232,8 +232,77 @@ def build_lp():
     d.save(f'{DST}/contratto_lp.docx')
 
 
+
+# ---------------- Contratto dirigente (CCNL Dirigenti Industria) ----------------
+def build_dirigente():
+    d = Document(f'{SRC}/dirigente.docx')
+    P = all_paragraphs(d)
+    repl(find(P, 'Egr. dott. Francesco Epifani'), 'Egr. dott. Francesco Epifani', '{Egr_titolo} {nome_completo}')
+    repl(find(P, 'Via Antonio Gramsci'), 'Via Antonio Gramsci, 128', '{indirizzo}')
+    repl(find(P, '50019 Sesto Fiorentino (FI)'), '50019 Sesto Fiorentino (FI)', '{cap_citta}')
+    repl(find(P, 'C.F.: PFNFNC'), 'PFNFNC84M03G751B', '{cf}')
+    repl(find(P, 'Nato a Poggiardo'), 'Nato a Poggiardo (LE) il 03/08/1984', '{nato_a} {luogo_nascita} il {data_nascita}')
+    repl(find(P, 'Sesto Fiorentino (FI); 24/08/2026'), 'Sesto Fiorentino (FI); 24/08/2026', '{citta_lettera}; {data_lettera}')
+    repl(find(P, 'Egregio Dott. Francesco Epifani'), 'Egregio Dott. Francesco Epifani', '{Egregio} {Titolo} {nome_completo}')
+    p = find(P, 'con la presente siamo lieti')
+    repl(p, 'a far data dal 01/09/2026, verrà assunto', 'a far data dal {data_assunzione}, {assunto}')
+    p = find(P, 'Ella verrà inquadrato')
+    repl(p, 'Ella verrà inquadrato', 'Ella verrà {inquadrato}')
+    repl(p, 'Amministratore Delegato e Direttore Generale della Società', '{mansione}')
+    repl(p, 'Lei riporterà al Presidente del Consiglio di Amministrazione della scrivente Società', 'Lei riporterà {riporta_a}')
+    repl(find(P, 'Periodo di prova: non richiesta'), 'non richiesta', '{periodo_prova}')
+    repl(find(P, 'La Sua sede di lavoro'), 'in Sesto Fiorentino (FI), via di Pratignone, 13/4', 'in {sede_lavoro}')
+    p = find(P, 'Quale retribuzione fissa')
+    repl(p, '€ 195.000,00 (centottantasette mila e cinquecento/00)', '€ {ral} ({ral_lettere}/00)')
+    repl(p, 'tredici mensilità', '{mensilita_lettere} mensilità')
+    repl(p, '€ 85.000,00', '€ {minimo_dirigenti}')
+    # MBO: blocco condizionale
+    p = find(P, 'Retribuzione variabile (MBO)')
+    set_text(p, '{#mbo}')
+    p2 = clone_after(p, 'Retribuzione variabile (MBO): In attuazione del CCNL per i Dirigenti di aziende produttrici di beni e servizi, art. 6, al Dirigente è riconosciuto un premio annuo lordo {mbo_frase}, per il quale Le confermiamo la volontà dell’Azienda di dare piena attuazione al piano di MBO a Lei riferito. In allegato specifico accordo con i target, i parametri e i relativi criteri di calcolo del premio.')
+    clone_after(p2, '{/mbo}')
+    # Benefit: lista
+    items = [find(P, 'Vettura Aziendale'), find(P, 'Tessera Carburante'), find(P, 'Cellulare Aziendale'), find(P, 'PC portatile aziendale')]
+    for x in items[1:]:
+        delete(x)
+    loop_block(items[0], '{#benefits}', '{.}', '{/benefits}')
+    intro = find(P, 'In ragione delle Sue mansioni e funzioni, Le saranno assegnati')
+    set_text(intro, '{#has_benefits}In ragione delle Sue mansioni e funzioni, Le saranno assegnati i seguenti beni:{/has_benefits}{^has_benefits}Non sono previste dotazioni specifiche oltre a quelle d’ufficio.{/has_benefits}')
+    # Firme (tabella)
+    repl_any(P, 'Valentina Zezza', '{firmatario}')
+    repl_any(P, 'Un Consigliere di Amministrazione', '{firmatario_qualifica}')
+    repl_any(P, 'Francesco Epifani', '{nome_completo}')
+    d.save(f'{DST}/contratto_dirigente.docx')
+
+
+# ---------------- Piano MBO dirigente (premio in cifra fissa, pro rata) ----------------
+def build_mbo_dirigente():
+    d = Document(f'{SRC}/mbo_dirigente.docx')
+    P = all_paragraphs(d)
+    repl_any(P, 'Francesco Epifani', '{nome_completo}')
+    repl_any(P, 'Valentina Zezza', '{firmatario}')
+    repl_any(P, 'Top Management - Esercizio 2026', '{destinatari_label} - Esercizio {anno}')
+    repl_any(P, 'per l’esercizio 2026', 'per l’esercizio {anno}')
+    repl_any(P, 'Piano MBO 2026', 'Piano MBO {anno}')
+    repl_any(P, 'coincide con la porzione del 2026 (1° settembre 2026 – 31 dicembre 2026). La valutazione finale avverrà entro il 28 febbraio 2027.', 'coincide con {periodo_frase}. La valutazione finale avverrà entro il 28 febbraio {anno_succ}.')
+    repl_any(P, 'Il premio MBO per l’Anno 2026 è pari a 55.000,00 euro', 'Il premio MBO per l’Anno {anno} è pari a {premio_importo} euro ({mbo_pct}% della retribuzione fissa annua)')
+    repl_any(P, 'cedolino del mese di marzo 2027', 'cedolino del mese di marzo {anno_succ}')
+    repl_any(P, 'Firenze (FI), 03/04/2026', '{luogo_data}')
+    t = d.tables[0]
+    cells = t.rows[1].cells
+    set_text(cells[0].paragraphs[0], '{#obiettivi}{area}')
+    set_text(cells[1].paragraphs[0], '{obiettivo}')
+    set_text(cells[2].paragraphs[0], '{kpi}')
+    set_text(cells[3].paragraphs[0], '{target}')
+    set_text(cells[4].paragraphs[0], '{peso}%{/obiettivi}')
+    for r in list(t.rows)[2:]:
+        t._tbl.remove(r._tr)
+    d.save(f'{DST}/mbo_dirigente.docx')
+
 build_contratto()
 build_mbo()
 build_impegno()
 build_lp()
+build_dirigente()
+build_mbo_dirigente()
 print('Template generati in', DST)

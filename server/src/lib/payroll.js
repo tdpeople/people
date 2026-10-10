@@ -28,6 +28,15 @@ export function decompose(ral, monthly = 14, basePay = null, share = 0.7) {
   return { ral: r2(ral), monthly, ral_monthly: ralMonthly, base_pay: r2(base), superminimo, function_allowance: functionAllowance };
 }
 
+// Dirigenti (CCNL Dirigenti Industria): nessun livello; minimo contrattuale di garanzia annuo + superminimo ad personam, 13 mensilità
+export function decomposeDirigente(ral, settings, monthly = 13) {
+  const minimo = Number(settings.dirigenti_minimum || 85000);
+  const m = Number(monthly || settings.dirigenti_monthly_payments || 13);
+  const ralMonthly = r2(Number(ral || 0) / m);
+  const base = r2(Math.min(Number(ral || 0), minimo) / m);
+  return { ral: r2(ral), monthly: m, ral_monthly: ralMonthly, base_pay: base, superminimo: r2(Math.max(0, ralMonthly - base)), function_allowance: 0, minimum_annual: minimo };
+}
+
 // Coefficiente di costo azienda (RAL x coefficiente = costo annuo lordo stimato)
 export function costCoefficient(settings, employment = {}) {
   if (employment.cost_coefficient) return Number(employment.cost_coefficient);

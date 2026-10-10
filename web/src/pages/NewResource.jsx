@@ -26,6 +26,9 @@ export default function NewResource({ letterMode = false }) {
   const [cvFile, setCvFile] = useState(null);
   const [fromLetter, setFromLetter] = useState(null); // lettera accettata selezionata
   const [generate, setGenerate] = useState(true);
+  const [imported, setImported] = useState({ contract: null, mbo: null, unilav: null }); // file già sottoscritti caricati come "tempo zero"
+  const [importInfo, setImportInfo] = useState([]);
+  const [parsing, setParsing] = useState(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
   const accepted = useApi(kind === 'DIPENDENTE' && path === 'CONTRATTO' ? '/scouting/letters-accepted' : null, [kind, path]);
@@ -39,6 +42,7 @@ export default function NewResource({ letterMode = false }) {
   }, [cvId, cv.data]);
 
   const isLp = kind === 'LP';
+  const hasImport = Boolean(imported.contract || imported.mbo || imported.unilav);
   const steps = isLp ? STEPS_LP : STEPS_EMP;
   const idx = (name) => steps.indexOf(name);
 
@@ -79,8 +83,9 @@ export default function NewResource({ letterMode = false }) {
         }
         target = `/risorse/${resourceId}`;
         if (cvFile) await uploadCv(resourceId);
+        await uploadImported(resourceId);
         if (generate) {
-          if (emp.contract_type !== 'DIRIGENTE') await api.post(`/resources/${resourceId}/documents/generate`, { kind: 'CONTRATTO' });
+          await api.post(`/resources/${resourceId}/documents/generate`, { kind: 'CONTRATTO' });
           if (emp.mbo_enabled) await api.post(`/resources/${resourceId}/documents/generate`, { kind: 'MBO' });
         }
       }
@@ -88,6 +93,36 @@ export default function NewResource({ letterMode = false }) {
       nav(target);
     } catch (e2) { setErr(e2); }
     setBusy(false);
+  };
+  const uploadImported = async (id) => {
+    const items = [['contract', 'CONTRATTO_FIRMATO', emp.letter_date || emp.start_date], ['mbo', 'MBO', emp.letter_date], ['unilav', 'UNILAV', emp.start_date]];
+    for (const [key, category, issued] of items) {
+      const f = imported[key]; if (!f) continue;
+      const fd = new FormData(); fd.append('file', f); fd.append('category', category); fd.append('signed', 'true'); if (issued) fd.append('issued_at', issued); fd.append('notes', 'Documento già sottoscritto, caricato all\'inserimento (tempo zero)');
+      await api.upload(`/resources/${id}/attachments`, fd);
+    }
+  };
+  const importFile = async (slot, file) => {
+    if (!file) return;
+    setParsing(slot); setErr(null);
+    try {
+      const fd = new FormData(); fd.append('file', file);
+      const r = await api.upload('/resources/parse-document', fd);
+      const notes = [...(r.notes || [])];
+      if (r.detected === 'SCONOSCIUTO') notes.push('Formato non riconosciuto: il file viene comunque allegato al dossier');
+      const key = r.detected === 'MBO' ? 'mbo' : r.detected === 'UNILAV' ? 'unilav' : 'contract';
+      if (key !== slot && r.detected !== 'SCONOSCIUTO') notes.push(`Il file è stato riconosciuto come ${r.detected === 'MBO' ? 'piano MBO' : r.detected === 'UNILAV' ? 'comunicazione UNILAV' : 'contratto'}`);
+      setImported((x) => ({ ...x, [r.detected === 'SCONOSCIUTO' ? slot : key]: file }));
+      setKind('DIPENDENTE'); setPath('CONTRATTO'); setGenerate(false);
+      const fill = (prev, data) => { const out = { ...prev }; for (const [k, v] of Object.entries(data || {})) if (v !== null && v !== undefined && v !== '') out[k] = v; return out; };
+      setPerson((p) => fill({ ...p, kind: 'DIPENDENTE' }, r.person));
+      setEmp((e) => { const data = { ...(r.employment || {}) }; if (r.detected === 'MBO') { delete data.letter_date; if (data.mbo_fixed_amount) { data.mbo_amount = data.mbo_fixed_amount; } delete data.mbo_fixed_amount; } const n = fill(e, data); if (r.detected === 'MBO') n.mbo_enabled = true; return n; });
+      const label = r.detected === 'MBO' ? 'Piano MBO' : r.detected === 'UNILAV' ? 'UNILAV' : r.detected === 'CONTRATTO_DIRIGENTE' ? 'Contratto dirigente' : 'Contratto';
+      setImportInfo((l) => [...l, `${label} "${r.filename}" letto${r.method === 'ocr' ? ' con OCR (scansione: verifica i dati)' : ''}. ${notes.join('. ')}`]);
+      setStep(2);
+      toast(`${label} letto: controlla e completa i dati`);
+    } catch (e2) { setErr(e2); }
+    setParsing(null);
   };
   const uploadCv = async (id) => { const fd = new FormData(); fd.append('file', cvFile); fd.append('category', 'CV'); fd.append('set_cv', 'true'); await api.upload(`/resources/${id}/attachments`, fd); };
 
@@ -98,13 +133,21 @@ export default function NewResource({ letterMode = false }) {
     if (!person.birth_place) m.push('luogo di nascita'); if (!person.birth_date) m.push('data di nascita'); if (!person.tax_code) m.push('codice fiscale'); if (!person.address || !person.city) m.push('indirizzo di residenza');
     if (isLp) { if (!lp.discipline) m.push('disciplina'); if (!person.vat_number) m.push('partita IVA'); if (!lp.order_name) m.push('ordine'); if (!lp.order_number) m.push('numero di iscrizione'); if (!lp.start_date) m.push('data di inizio'); if (!(lp.fees || []).some((f) => f.description)) m.push('compensi'); }
     else if (path === 'LETTERA') { if (!letter.job_title) m.push('mansione'); if (!letter.level) m.push('livello'); if (!letter.ral) m.push('RAL'); if (!letter.start_by) m.push('decorrenza massima'); }
-    else { if (!emp.job_title) m.push('mansione'); if (!emp.level) m.push('livello'); if (!emp.ral) m.push('RAL'); if (!emp.start_date) m.push('data di assunzione'); if (!emp.probation) m.push('periodo di prova'); }
+    else { if (!emp.job_title) m.push('mansione'); if (!emp.level && emp.contract_type !== 'DIRIGENTE') m.push('livello'); if (!emp.ral) m.push('RAL'); if (!emp.start_date) m.push('data di assunzione'); if (!emp.probation) m.push('periodo di prova'); }
     return m;
   })();
 
   return (
     <div className="page">
-      <div className="page-head"><div><h1>{letterMode ? 'Nuova lettera di impegno' : 'Inserimento nuova risorsa'}</h1><div className="sub">Il percorso guida raccoglie i dati e genera i documenti sui format aziendali (DOCX e PDF).</div></div></div>
+      <div className="page-head"><div><h1>{letterMode ? 'Nuova lettera di impegno' : 'Inserimento nuova risorsa'}</h1><div className="sub">{letterMode ? 'Il percorso guida raccoglie i dati e genera la lettera sul format aziendale (DOCX e PDF).' : 'Il percorso guida raccoglie i dati e genera i documenti sui format aziendali (DOCX e PDF). Per i rapporti già in essere, carica il contratto firmato: i dati vengono letti e il file archiviato nel dossier.'}</div></div>
+        {!letterMode && (
+          <div className="row">
+            <label className={`btn ghost ${parsing ? 'disabled' : ''}`} title="PDF o DOCX del contratto già sottoscritto: i dati vengono letti e precompilati"><Icon name="upload" />{parsing === 'contract' ? 'Lettura in corso…' : imported.contract ? `Contratto: ${imported.contract.name}` : 'Carica PDF contratto'}<input type="file" accept=".pdf,.docx,application/pdf" style={{ display: 'none' }} disabled={Boolean(parsing)} onChange={(e) => { importFile('contract', e.target.files?.[0]); e.target.value = ''; }} /></label>
+            <label className={`btn ghost ${parsing ? 'disabled' : ''}`} title="PDF o DOCX del piano MBO firmato"><Icon name="upload" />{parsing === 'mbo' ? 'Lettura in corso…' : imported.mbo ? `MBO: ${imported.mbo.name}` : 'Carica PDF MBO'}<input type="file" accept=".pdf,.docx,application/pdf" style={{ display: 'none' }} disabled={Boolean(parsing)} onChange={(e) => { importFile('mbo', e.target.files?.[0]); e.target.value = ''; }} /></label>
+          </div>
+        )}
+      </div>
+      {importInfo.length > 0 && <div className="alert info" style={{ display: 'block', marginBottom: 14 }}>{importInfo.map((t, i) => <div key={i}>{t}</div>)}<div className="small muted" style={{ marginTop: 4 }}>I file caricati vengono archiviati nel dossier come documenti firmati al salvataggio; la generazione dei nuovi documenti è disattivata (riattivabile nel riepilogo).</div></div>}
       <Steps steps={steps} cur={step} />
       <ErrorBox error={err} />
 
@@ -122,7 +165,7 @@ export default function NewResource({ letterMode = false }) {
         </div>
       )}
 
-      {!isLp && step === 2 && path === 'CONTRATTO' && !fromLetter && (accepted.data || []).length > 0 && (
+      {!isLp && step === 2 && path === 'CONTRATTO' && !fromLetter && !hasImport && (accepted.data || []).length > 0 && (
         <Card title="Lettere di impegno accettate" className="no-print" actions={<span className="small muted">verifica automatica</span>}>
           <p>Ci sono lettere di impegno accettate non ancora convertite in assunzione. Seleziona quella della persona da assumere per recuperare tutti i dati, oppure prosegui con un inserimento nuovo.</p>
           <div className="table-wrap"><table className="t"><thead><tr><th>Persona</th><th>Mansione</th><th>Livello</th><th className="num">RAL</th><th>Decorrenza max</th><th /></tr></thead>
@@ -131,7 +174,7 @@ export default function NewResource({ letterMode = false }) {
         </Card>
       )}
 
-      {((isLp && step === 1) || (!isLp && step === 2 && (path === 'LETTERA' || fromLetter || !(accepted.data || []).length))) && (
+      {((isLp && step === 1) || (!isLp && step === 2 && (path === 'LETTERA' || fromLetter || hasImport || !(accepted.data || []).length))) && (
         <Card title="Anagrafica e CV">
           {fromLetter?.id && <div className="alert ok" style={{ marginBottom: 12 }}>Dati recuperati dalla lettera di impegno del {itDate(fromLetter.letter_date)} (accettata il {itDate(fromLetter.accepted_at)}).</div>}
           <PersonForm value={person} onChange={setPerson} kind={kind} />
@@ -160,10 +203,11 @@ export default function NewResource({ letterMode = false }) {
               <h3>{isLp ? 'Incarico' : path === 'LETTERA' ? 'Proposta' : 'Contratto'}</h3>
               {isLp ? <p>{lp.discipline}<br />dal {itDate(lp.start_date)} al {itDate(lp.end_date)}<br />{(lp.fees || []).filter((f) => f.description).length} voci di compenso</p>
                 : path === 'LETTERA' ? <p>{letter.job_title} · {LEVEL_LABEL[letter.level] || letter.level}<br />RAL {eur(letter.ral)}{(letter.ral_steps || []).filter((s) => s.from).map((s) => ` → ${eur(s.ral)} dal ${itDate(s.from)}`)}<br />decorrenza non oltre il {itDate(letter.start_by)}</p>
-                  : <p>{emp.job_title} · {LEVEL_LABEL[emp.level] || emp.level}<br />RAL {eur(emp.ral)} su {emp.monthly_payments} mensilità{(emp.ral_steps || []).filter((s) => s.from).map((s) => ` → ${eur(s.ral)} dal ${itDate(s.from)}`)}<br />dal {itDate(emp.start_date)} · {emp.weekly_hours} ore · prova: {emp.probation}{emp.mbo_enabled ? ` · MBO ${emp.mbo_pct}%` : ''}</p>}
+                  : <p>{emp.job_title} · {emp.contract_type === 'DIRIGENTE' ? 'Dirigente (CCNL Dirigenti Industria)' : (LEVEL_LABEL[emp.level] || emp.level)}<br />RAL {eur(emp.ral)} su {emp.monthly_payments} mensilità{(emp.ral_steps || []).filter((s) => s.from).map((s) => ` → ${eur(s.ral)} dal ${itDate(s.from)}`)}<br />dal {itDate(emp.start_date)} · {emp.weekly_hours} ore · prova: {emp.probation}{emp.mbo_enabled ? ` · MBO ${emp.mbo_amount ? eur(emp.mbo_amount) + ' annui' : (emp.mbo_pct ?? '–') + '%'}` : ''}</p>}
             </div>
           </div>
           {missingList.length > 0 && <div className="alert" style={{ marginTop: 12, display: 'block', background: '#fff6e5', border: '1px solid #f0d9a8', color: '#7a4a00', borderRadius: 10, padding: '10px 14px' }}>Dati non inseriti: {missingList.join(', ')}. Puoi salvare comunque: nel DOCX e nel PDF compariranno come segnaposto tra parentesi quadre (es. [CODICE FISCALE]) da completare in Word o rigenerando il documento dopo aver completato la scheda.</div>}
+          {(imported.contract || imported.mbo || imported.unilav) && <div className="alert ok" style={{ marginTop: 12, display: 'block' }}>Documenti già sottoscritti che verranno archiviati nel dossier: {[imported.contract && `contratto (${imported.contract.name})`, imported.mbo && `MBO (${imported.mbo.name})`, imported.unilav && `UNILAV (${imported.unilav.name})`].filter(Boolean).join(', ')}.</div>}
           <label className="f inline" style={{ marginTop: 10 }}><input type="checkbox" checked={generate} onChange={(e) => setGenerate(e.target.checked)} /> Genera subito i documenti (DOCX e PDF) sui format aziendali{!isLp && path === 'CONTRATTO' && emp.mbo_enabled ? ': contratto e piano MBO' : ''}</label>
           <div className="row end" style={{ marginTop: 16 }}><button className="btn ghost" onClick={() => setStep(step - 1)}>Indietro</button><button className="btn lg" disabled={busy} onClick={save}>{busy ? 'Salvataggio…' : 'Salva e genera'}</button></div>
         </Card>

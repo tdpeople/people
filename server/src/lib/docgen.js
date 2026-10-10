@@ -15,6 +15,8 @@ export const TEMPLATE_FILES = {
   MBO: 'mbo.docx',
   LETTERA_IMPEGNO: 'lettera_impegno.docx',
   CONTRATTO_LP: 'contratto_lp.docx',
+  CONTRATTO_DIRIGENTE: 'contratto_dirigente.docx',
+  MBO_DIRIGENTE: 'mbo_dirigente.docx',
 };
 
 export function renderDocx(kind, data) {

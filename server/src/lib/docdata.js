@@ -1,6 +1,6 @@
 // Costruzione dei dati per i template documentali
 import { itDate, r2 } from './util.js';
-import { decompose } from './payroll.js';
+import { decompose, decomposeDirigente } from './payroll.js';
 
 export const eurIt = (n) => new Intl.NumberFormat('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: 'always' }).format(Number(n || 0));
 const dateLong = (iso) => (iso ? new Date(`${iso}T12:00:00`).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' }) : '');
@@ -90,7 +90,7 @@ export function mboData({ resource: r, employment: e, settings: S, letterDate })
   const objectives = (e.mbo_objectives || []).map((o) => ({ area: o.area || '', obiettivo: o.objective || '', kpi: o.kpi || '', target: o.target || '', peso: String(o.weight ?? '') }));
   return {
     nome_completo: fullName(r),
-    firmatario: S.signatory_name || '',
+    firmatario: signatoryFor(r, S).name,
     destinatari_label: e.mbo_label || 'Top Management',
     anno: String(year),
     anno_succ: String(year + 1),
@@ -185,3 +185,106 @@ function numberWords(n) {
 }
 
 export const money = r2;
+
+
+// ---------- Numeri in lettere (italiano), per gli importi dei contratti dirigenziali ----------
+const UNITS = ['', 'uno', 'due', 'tre', 'quattro', 'cinque', 'sei', 'sette', 'otto', 'nove', 'dieci', 'undici', 'dodici', 'tredici', 'quattordici', 'quindici', 'sedici', 'diciassette', 'diciotto', 'diciannove'];
+const TENS = ['', '', 'venti', 'trenta', 'quaranta', 'cinquanta', 'sessanta', 'settanta', 'ottanta', 'novanta'];
+function below1000(n) {
+  let out = '';
+  const h = Math.floor(n / 100); const rest = n % 100;
+  if (h) out += (h === 1 ? 'cento' : UNITS[h] + 'cento');
+  if (rest < 20) out += UNITS[rest];
+  else {
+    const t = Math.floor(rest / 10); const u = rest % 10;
+    let tw = TENS[t];
+    if (u === 1 || u === 8) tw = tw.slice(0, -1);
+    out += tw + UNITS[u];
+  }
+  return out;
+}
+export function numberToWordsIt(n) {
+  n = Math.floor(Math.abs(Number(n) || 0));
+  if (n === 0) return 'zero';
+  let out = '';
+  const millions = Math.floor(n / 1e6); const thousands = Math.floor((n % 1e6) / 1000); const rest = n % 1000;
+  if (millions) out += millions === 1 ? 'unmilione' : below1000(millions) + 'milioni';
+  if (thousands) out += thousands === 1 ? 'mille' : below1000(thousands) + 'mila';
+  if (rest) out += below1000(rest);
+  return out;
+}
+const MONTHLY_WORDS = { 12: 'dodici', 13: 'tredici', 14: 'quattordici', 15: 'quindici' };
+
+/** Chi firma per la Società: il firmatario standard, oppure il consigliere delegato quando il destinatario è il firmatario stesso. */
+export function signatoryFor(r, S) {
+  const std = (S.signatory_name || '').trim().toLowerCase();
+  const me = `${r.first_name} ${r.last_name}`.trim().toLowerCase();
+  if (std && me === std) return { name: S.board_signatory_name || PH('firmatario'), title: S.board_signatory_title || 'Un Consigliere di Amministrazione' };
+  return { name: S.signatory_name || PH('firmatario'), title: S.signatory_title || '' };
+}
+
+/** Lettera di assunzione dirigente (CCNL Dirigenti Industria): minimo contrattuale di garanzia + superminimo, 13 mensilità, FASI e Previndai. */
+export function dirigenteData({ resource: r, employment: e, settings: S, letterDate }) {
+  const monthly = Number(e.monthly_payments || S.dirigenti_monthly_payments || 13);
+  const hasRal = Number(e.ral) > 0;
+  const dec = decomposeDirigente(e.ral, S, monthly);
+  const title = (r.title || (female(r) ? 'dott.ssa' : 'dott.')).trim();
+  const cap = (x) => x.charAt(0).toUpperCase() + x.slice(1);
+  const benefits = (e.benefits || []).filter(Boolean).map((b) => String(b).replace(/[;.]\s*$/, ''));
+  const sign = signatoryFor(r, S);
+  return {
+    Egr_titolo: `${g(r, 'Gent.ma', 'Egr.')} ${title}`,
+    Egregio: g(r, 'Gentile', 'Egregio'),
+    Titolo: cap(title),
+    nome_completo: fullName(r),
+    indirizzo: txt(r.address, 'indirizzo'),
+    cap_citta: r.zip || r.city ? [r.zip, r.city, r.province ? `(${r.province})` : ''].filter(Boolean).join(' ') : PH('cap e città'),
+    cf: txt(r.tax_code, 'codice fiscale'),
+    nato_a: g(r, 'Nata a', 'Nato a'),
+    luogo_nascita: txt(r.birth_place, 'luogo di nascita'),
+    data_nascita: dateOr(r.birth_date, 'data di nascita'),
+    citta_lettera: `${S.letter_city || 'Sesto Fiorentino'} (FI)`,
+    data_lettera: itDate(letterDate || e.letter_date || new Date().toISOString().slice(0, 10)),
+    data_assunzione: dateOr(e.start_date, 'data di assunzione'),
+    assunto: g(r, 'verrà assunta', 'verrà assunto'),
+    inquadrato: g(r, 'inquadrata', 'inquadrato'),
+    mansione: txt(e.job_title, 'ruolo e funzione'),
+    riporta_a: e.reports_to ? e.reports_to : 'al Presidente del Consiglio di Amministrazione della scrivente Società',
+    periodo_prova: e.probation && !/^non richiest|^nessun/i.test(e.probation) ? e.probation : 'non richiesta',
+    sede_lavoro: e.work_site || S.company_address || PH('sede di lavoro'),
+    ral: moneyOr(e.ral, 'retribuzione annua'),
+    ral_lettere: hasRal ? numberToWordsIt(e.ral) : PH('importo in lettere'),
+    mensilita_lettere: MONTHLY_WORDS[monthly] || String(monthly),
+    minimo_dirigenti: eurIt(dec.minimum_annual),
+    mbo: e.mbo_enabled ? [{ mbo_frase: Number(e.mbo_amount) > 0 ? `fino a € ${eurIt(e.mbo_amount)} annui` : Number(e.mbo_pct) > 0 ? `fino al ${String(Number(e.mbo_pct)).replace('.', ',')}% della retribuzione fissa` : `fino a ${PH('importo o % mbo')}` }] : [],
+    has_benefits: benefits.length > 0,
+    benefits,
+    firmatario: sign.name,
+    firmatario_qualifica: sign.title,
+  };
+}
+
+/** Piano MBO dirigente: premio in cifra (pct della retribuzione fissa), periodo pro rata se l'assunzione è in corso d'anno. */
+export function mboDirigenteData({ resource: r, employment: e, settings: S, letterDate }) {
+  const year = e.mbo_year || new Date().getFullYear();
+  const objectives = (e.mbo_objectives || []).map((o) => ({ area: o.area || '', obiettivo: o.objective || '', kpi: o.kpi || '', target: o.target || '', peso: String(o.weight ?? '') }));
+  const start = e.start_date && e.start_date.slice(0, 4) === String(year) && e.start_date.slice(5) !== '01-01' ? e.start_date : null;
+  const periodo = start ? `la porzione del ${year} (${dateLong(start)} – 31 dicembre ${year})` : `l’anno solare ${year} (1° gennaio ${year} – 31 dicembre ${year})`;
+  let pct = Number(e.mbo_pct) || 0;
+  let premio = Number(e.mbo_amount) || 0; // cifra fissa: prevale e non viene riproporzionata
+  if (!premio && pct && Number(e.ral)) { premio = Number(e.ral) * pct / 100; if (start) { const d0 = new Date(`${start}T12:00:00`); premio = premio * (12 - d0.getMonth()) / 12; } }
+  if (premio && !pct && Number(e.ral)) pct = Math.round(premio / Number(e.ral) * 10000) / 100;
+  const sign = signatoryFor(r, S);
+  return {
+    nome_completo: fullName(r),
+    firmatario: sign.name,
+    destinatari_label: e.mbo_label || 'Top Management',
+    anno: String(year),
+    anno_succ: String(year + 1),
+    mbo_pct: pct ? String(pct).replace('.', ',') : PH('% mbo'),
+    premio_importo: premio ? eurIt(premio) : PH('importo premio'),
+    periodo_frase: periodo,
+    luogo_data: `${S.letter_city || 'Firenze'} (FI), ${itDate(letterDate || e.letter_date || new Date().toISOString().slice(0, 10))}`,
+    obiettivi: objectives.length ? objectives : [{ area: PH('area'), obiettivo: PH('obiettivo'), kpi: PH('kpi'), target: PH('target'), peso: PH('peso') }],
+  };
+}

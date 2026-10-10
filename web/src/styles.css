@@ -323,3 +323,5 @@ th.sortable:hover { color: var(--teal); }
 .report-tree li { padding: 4px 0 4px 8px; }
 .report-tree .p { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 @media print { .side, .topbar, .org-node .tools, .page-head .btn, .tabs { display: none !important; } .org-wrap { overflow: visible; } }
+.btn.disabled { opacity: .6; pointer-events: none; }
+label.btn { cursor: pointer; }

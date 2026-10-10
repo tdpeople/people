@@ -8,6 +8,10 @@ Inserimento nuova risorsa: percorso guidato. Si sceglie dipendente o libero prof
 
 Organigramma (prima voce del menu): struttura da TD-SGI-IDL007 Allegato 1 con viste Direzione, Laboratorio di Analisi, Network Punti Prelievo, Diagnostic Center e organigramma completo; posizioni di staff (C-level, Direttore Sanitario, manager di supporto), sedi da assegnare, nomi collegati automaticamente all'anagrafica (per risorsa o per omonimia), riporti diretti per responsabile, modifica di ogni unità (nome, tipo, responsabile, dipendenza, note), vista "Linee di riporto" ricavata dal campo Responsabile delle schede, allineamento dei responsabili all'organigramma (admin), PDF ufficiale consultabile e aggiornabile, stampa.
 
+Dirigenti (CEO): tipologia contratto "Dirigente" con CCNL Dirigenti Industria: nessun livello, 13 mensilità, minimo contrattuale di garanzia (TMCG, impostabile) più superminimo ad personam, periodo di prova non richiesto, autonomia di orario, FASI e Previndai, coefficiente di costo maggiorato; lettera di assunzione e piano MBO generati sui format dirigenziali (premio in cifra fissa o in percentuale, pro rata in caso di ingresso in corso d'anno), firmati dal consigliere delegato quando il destinatario è il firmatario aziendale.
+
+Tempo zero: nella pagina di inserimento, i pulsanti "Carica PDF contratto" e "Carica PDF MBO" accettano contratti già sottoscritti (PDF con testo, PDF scansionato tramite OCR, DOCX) e comunicazioni UNILAV: i dati di persona e rapporto vengono letti e precompilati nel percorso guidato, da controllare e completare; al salvataggio i file vengono archiviati nel dossier come documenti firmati e la generazione dei nuovi documenti resta disattivata. Con ANTHROPIC_API_KEY la lettura è rifinita dall'API Claude.
+
 Dashboard: risorse attive, sesso, età media, costo annuo e mensile per l'azienda, monte RAL, MBO massimo, organico per area, tipologia contrattuale, livello e disciplina, andamento mensile, scadenze in evidenza, dossier incompleti. Ogni numero e ogni barra è cliccabile e apre l'elenco delle persone del gruppo, da cui si apre la scheda.
 
 Elenco delle risorse (tutte, solo dipendenti, solo LP) con etichetta Dipendente/LP, ricerca, filtri, ordinamento, export Excel dei costi. Scheda della risorsa: anagrafica, rapporto di lavoro o incarico, retribuzione e costo azienda, completezza del dossier rispetto alla checklist documentale, dossier con allegati (categoria, data di rilascio, scadenza, firmato), anteprima PDF e immagini, documenti generati, scadenze, lettere di impegno.
@@ -60,11 +64,11 @@ DATABASE_URL=postgres://postgres:dev@localhost:5432/contracts SEED_ADMIN_EMAIL=t
 cd web && npm install && npm run dev   # proxy delle API su :3000
 ```
 
-Per i PDF in locale serve LibreOffice (`soffice` nel PATH o SOFFICE_BIN). Senza, vengono prodotti solo DOCX.
+Per i PDF in locale serve LibreOffice (`soffice` nel PATH o SOFFICE_BIN). Senza, vengono prodotti solo DOCX. Per leggere i contratti scansionati servono poppler-utils e tesseract-ocr (con tesseract-ocr-ita); il Dockerfile li include. Una scansione di 4 pagine richiede 30-60 secondi.
 
 ## Template documentali
 
-I template in server/src/templates sono i format aziendali con i segnaposto docxtemplater (`{nome_completo}`, `{ral}`, loop `{#voci}`, ...). Si rigenerano dai DOCX originali con `python3 tools/build_templates.py <sorgenti> server/src/templates` (python-docx). Per modificare un testo fisso (clausole, allegati) basta aprire il template in Word, rispettando i segnaposto.
+I template in server/src/templates (contratto dipendente, contratto dirigente, MBO, MBO dirigente, lettera di impegno, contratto LP) sono i format aziendali con i segnaposto docxtemplater (`{nome_completo}`, `{ral}`, loop `{#voci}`, ...). Si rigenerano dai DOCX originali con `python3 tools/build_templates.py <sorgenti> server/src/templates` (python-docx). Per modificare un testo fisso (clausole, allegati) basta aprire il template in Word, rispettando i segnaposto.
 
 Il pacchetto iniziale si costruisce con `python3 tools/build_seed_pack.py <cartella HRM> seed-pack.zip`: le anagrafiche e i dati contrattuali sono codificati nello script (estratti dai contratti DOCX), gli allegati sono mappati per nome file alle categorie del dossier.
 

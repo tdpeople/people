@@ -37,6 +37,10 @@ export const DEFAULT_SETTINGS = {
   health_director: 'prof. Gian Luigi Taddei',
   signatory_name: 'Francesco Epifani',
   signatory_title: 'Amministratore Delegato',
+  board_signatory_name: 'Valentina Zezza',            // firma i contratti del CEO (Consigliere di Amministrazione)
+  board_signatory_title: 'Un Consigliere di Amministrazione',
+  dirigenti_minimum: '85000.00',                       // CCNL Dirigenti Industria: trattamento minimo complessivo di garanzia (TMCG) annuo
+  dirigenti_monthly_payments: '13',
   letter_city: 'Firenze',
   // Costo azienda (ipotesi configurabili: verificare con il consulente del lavoro)
   cost_inps_pct: '29.00',

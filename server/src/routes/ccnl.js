@@ -5,7 +5,7 @@ import { one, many, q } from '../db.js';
 import { ah, bad, notFound, audit, parse } from '../lib/util.js';
 import { requireWrite, requireRole } from '../lib/access.js';
 import { config } from '../config.js';
-import { getSettings, decompose, minimumFor, costCoefficient, companyCost, netEstimate } from '../lib/payroll.js';
+import { getSettings, decompose, decomposeDirigente, minimumFor, costCoefficient, companyCost, netEstimate } from '../lib/payroll.js';
 
 const r = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 60 * 1024 * 1024 } });
@@ -78,7 +78,8 @@ r.post('/simulate', ah(async (req, res) => {
   let ral = d.ral;
   if (!ral && m) ral = Math.round(Number(m.amount) * d.monthly_payments * 100) / 100; // RAL minima = minimo x mensilità
   const ptFactor = Math.min(1, d.weekly_hours / 40);
-  const dec = decompose(ral, d.monthly_payments, m ? Number(m.amount) * ptFactor : null, Number(S.function_allowance_share || 0.7));
+  const dec = d.contract_type === 'DIRIGENTE' ? decomposeDirigente(ral || Number(S.dirigenti_minimum || 85000), S, d.monthly_payments) : decompose(ral, d.monthly_payments, m ? Number(m.amount) * ptFactor : null, Number(S.function_allowance_share || 0.7));
+  if (d.contract_type === 'DIRIGENTE' && !ral) ral = dec.ral;
   const coef = costCoefficient(S, { contract_type: d.contract_type });
   const cost = companyCost(ral, coef, d.mbo_pct || 0);
   const net = netEstimate(ral, S, d.monthly_payments);

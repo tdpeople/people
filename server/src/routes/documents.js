@@ -5,14 +5,14 @@ import { one, many, q } from '../db.js';
 import { ah, bad, notFound, audit, parse } from '../lib/util.js';
 import { requireWrite, requireRole } from '../lib/access.js';
 import { renderDocx, docxToPdf, pdfAvailable } from '../lib/docgen.js';
-import { missingFields, contractData, mboData, commitmentData, lpData, fullName } from '../lib/docdata.js';
+import { missingFields, contractData, mboData, dirigenteData, mboDirigenteData, commitmentData, lpData, fullName } from '../lib/docdata.js';
 import { getSettings } from '../lib/payroll.js';
 
 const r = Router();
 const dateRe = /^\d{4}-\d{2}-\d{2}$/;
 
 const TITLES = {
-  CONTRATTO: (r_) => `${r_.last_name} - Lettera di assunzione`,
+  CONTRATTO: (r_, e) => `${r_.last_name} - Lettera di assunzione${e?.contract_type === 'DIRIGENTE' ? ' Dirigente' : ''}`,
   MBO: (r_) => `MBO - ${fullName(r_)}`,
   LETTERA_IMPEGNO: (r_) => `Lettera di Impegno - ${fullName(r_)}`,
   CONTRATTO_LP: (r_) => `Contratto LP - ${fullName(r_)}`,
@@ -22,13 +22,14 @@ export async function generateDocument({ req, resourceId, kind, refId = null, le
   const resource = await one('SELECT * FROM resources WHERE id=$1', [resourceId]);
   if (!resource) throw notFound('Risorsa non trovata');
   const S = await getSettings();
-  let data;
+  let data; let template = kind; let employment = null;
   if (kind === 'CONTRATTO' || kind === 'MBO') {
-    const employment = await one('SELECT * FROM employments WHERE resource_id=$1', [resourceId]);
+    employment = await one('SELECT * FROM employments WHERE resource_id=$1', [resourceId]);
     if (!employment) throw bad('Dati del rapporto di lavoro mancanti');
     if (kind === 'MBO' && !employment.mbo_enabled) throw bad('MBO non previsto per questa risorsa');
-    if (employment.contract_type === 'DIRIGENTE' && kind === 'CONTRATTO') throw bad('Per i dirigenti si usa il format CCNL Dirigenti: caricare il contratto nel dossier');
-    data = kind === 'CONTRATTO' ? contractData({ resource, employment, settings: S, letterDate }) : mboData({ resource, employment, settings: S, letterDate });
+    const dir = employment.contract_type === 'DIRIGENTE';
+    data = kind === 'CONTRATTO' ? (dir ? dirigenteData : contractData)({ resource, employment, settings: S, letterDate }) : (dir ? mboDirigenteData : mboData)({ resource, employment, settings: S, letterDate });
+    template = dir ? (kind === 'CONTRATTO' ? 'CONTRATTO_DIRIGENTE' : 'MBO_DIRIGENTE') : kind;
   } else if (kind === 'CONTRATTO_LP') {
     const lp = await one('SELECT * FROM lp_contracts WHERE resource_id=$1', [resourceId]);
     if (!lp) throw bad('Dati dell\'incarico mancanti');
@@ -40,14 +41,14 @@ export async function generateDocument({ req, resourceId, kind, refId = null, le
   } else throw bad('Tipo documento non valido');
   const missing = missingFields(data);
   data._missing = missing;
-  const docx = renderDocx(kind, data);
+  const docx = renderDocx(template, data);
   let pdf = null;
   if (await pdfAvailable()) {
     try { pdf = await docxToPdf(docx); } catch (e) { console.error('[pdf]', e.message); }
   }
   const ver = (await one('SELECT coalesce(max(version),0)+1 AS v FROM generated_documents WHERE resource_id=$1 AND kind=$2 AND coalesce(ref_id,0)=coalesce($3,0)', [resourceId, kind, refId])).v;
   const row = await one(`INSERT INTO generated_documents (resource_id, kind, ref_id, version, title, docx, pdf, data, generated_by)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id, version`, [resourceId, kind, refId, ver, TITLES[kind](resource), docx, pdf, JSON.stringify(data), req.user.id]);
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id, version`, [resourceId, kind, refId, ver, TITLES[kind](resource, employment), docx, pdf, JSON.stringify(data), req.user.id]);
   await audit(req, 'DOCUMENT_GENERATE', 'document', row.id, { resource_id: resourceId, kind, version: ver, missing });
   return { id: row.id, version: ver, has_pdf: Boolean(pdf), missing };
 }
