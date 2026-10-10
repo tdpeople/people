@@ -76,10 +76,15 @@ r.put('/settings', requireRole('ADMIN'), ah(async (req, res) => {
 }));
 
 // ---------------- Aree e sedi ----------------
-r.get('/areas', ah(async (_req, res) => res.json(await many('SELECT a.*, (SELECT count(*)::int FROM resources r WHERE r.area_id=a.id AND r.status IN (\'ATTIVO\',\'IMPEGNO\')) AS headcount FROM areas a ORDER BY sort_order, name'))));
+r.get('/areas', ah(async (_req, res) => res.json(await many(`SELECT a.*, t.path, t.root_id, t.root_name,
+  (SELECT count(*)::int FROM resources r WHERE r.area_id=a.id AND r.status IN ('ATTIVO','IMPEGNO')) AS headcount,
+  (SELECT count(*)::int FROM areas c WHERE c.parent_id=a.id) AS children
+  FROM areas a JOIN areas_tree t ON t.id=a.id ORDER BY t.sort_path, a.name`))));
 r.post('/areas', requireWrite, ah(async (req, res) => {
-  const d = parse(z.object({ name: z.string().min(2).max(120), sort_order: z.number().int().default(100) }), req.body);
-  const row = await one('INSERT INTO areas(name, sort_order) VALUES ($1,$2) RETURNING *', [d.name, d.sort_order]);
+  const d = parse(z.object({ name: z.string().min(2).max(120), sort_order: z.number().int().default(100), parent_id: z.number().int().nullable().optional() }), req.body);
+  let level = 1;
+  if (d.parent_id) { const p = await one('SELECT level FROM areas WHERE id=$1', [d.parent_id]); if (!p) throw bad('Area di livello superiore inesistente'); if (p.level >= 3) throw bad('Sono previsti al massimo tre livelli'); level = p.level + 1; }
+  const row = await one('INSERT INTO areas(name, sort_order, parent_id, level) VALUES ($1,$2,$3,$4) RETURNING *', [d.name, d.sort_order, d.parent_id || null, level]);
   await audit(req, 'AREA_CREATE', 'area', row.id, d);
   res.status(201).json(row);
 }));
@@ -89,6 +94,8 @@ r.delete('/areas/:id', requireRole('ADMIN'), ah(async (req, res) => {
   if (!a) throw notFound();
   const n = (await one('SELECT count(*)::int AS n FROM resources WHERE area_id=$1', [id])).n;
   if (n > 0) throw bad(`L'area "${a.name}" ha ${n} risors${n === 1 ? 'a' : 'e'} assegnat${n === 1 ? 'a' : 'e'}: spostale in un'altra area prima di eliminarla`);
+  const c = (await one('SELECT count(*)::int AS n FROM areas WHERE parent_id=$1', [id])).n;
+  if (c > 0) throw bad(`L'area "${a.name}" ha ${c} aree di livello inferiore: eliminale o spostale prima`);
   await q('UPDATE org_units SET area_id=NULL WHERE area_id=$1', [id]);
   await q('DELETE FROM areas WHERE id=$1', [id]);
   await audit(req, 'AREA_DELETE', 'area', id, { name: a.name });

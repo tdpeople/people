@@ -37,9 +37,10 @@ async function seed() {
   for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) {
     await q('INSERT INTO app_settings(key, value) VALUES ($1,$2) ON CONFLICT (key) DO NOTHING', [k, v]);
   }
-  // Aree aziendali
-  for (const [i, name] of AREAS.entries()) {
-    await q('INSERT INTO areas(name, sort_order) VALUES ($1,$2) ON CONFLICT (name) DO NOTHING', [name, (i + 1) * 10]);
+  // Aree aziendali (tre livelli)
+  for (const [i, [name, parentName]] of AREAS.entries()) {
+    const parent = parentName ? await one('SELECT id, level FROM areas WHERE name=$1', [parentName]) : null;
+    await q('INSERT INTO areas(name, sort_order, parent_id, level) VALUES ($1,$2,$3,$4) ON CONFLICT (name) DO UPDATE SET parent_id=coalesce(areas.parent_id, EXCLUDED.parent_id), level=CASE WHEN areas.parent_id IS NULL AND EXCLUDED.parent_id IS NOT NULL THEN EXCLUDED.level ELSE areas.level END', [name, (i + 1) * 10, parent?.id || null, parent ? parent.level + 1 : 1]);
   }
   // Sedi di lavoro
   if ((await one('SELECT count(*)::int AS n FROM work_sites')).n === 0) {

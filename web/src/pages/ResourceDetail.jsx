@@ -36,7 +36,7 @@ export default function ResourceDetail() {
     <div className="page">
       <div className="page-head">
         <div>
-          <div className="row" style={{ gap: 8 }}><KindBadge kind={r.kind} /><StatusBadge status={r.status} />{r.area_name && <Badge tone="grey">{r.area_name}</Badge>}</div>
+          <div className="row" style={{ gap: 8 }}><KindBadge kind={r.kind} /><StatusBadge status={r.status} />{r.area_name && <Badge tone="grey" title={r.area_path}>{r.area_name}</Badge>}</div>
           <h1 style={{ marginTop: 6 }}>{r.title ? `${r.title} ` : ''}{r.first_name} {r.last_name}</h1>
           <div className="sub">{isEmp ? `${r.job_title || 'Mansione n.d.'}${r.level ? ` · ${LEVEL_LABEL[r.level] || r.level}` : ''}${r.contract_type ? ` · ${CONTRACT[r.contract_type]}` : ''}` : `${r.discipline || 'Disciplina n.d.'} · libero professionista`}{r.manager_name ? ` · riporta a ${r.manager_name}` : ''}</div>
         </div>
@@ -63,7 +63,7 @@ export default function ResourceDetail() {
             <Row k="Telefono" v={r.phone} />
             <Row k="Email" v={r.email} />
             <Row k="Indirizzo" v={[r.address, r.zip, r.city, r.province ? `(${r.province})` : ''].filter(Boolean).join(' ')} />
-            <Row k="Area" v={r.area_name} />
+            <Row k="Area" v={r.area_path || r.area_name} />
             <Row k="Riporta a" v={r.manager_id ? <Link to={`/risorse/${r.manager_id}`}>{r.manager_name}</Link> : null} />
             <Row k="Approva ferie e permessi" v={r.approver_id ? <Link to={`/risorse/${r.approver_id}`}>{r.approver_name}</Link> : r.manager_id ? <span>{r.manager_name} <span className="small muted">(responsabile)</span></span> : null} />
             {(d.data.org_units || []).length > 0 && <Row k="Nell'organigramma" v={<Link to="/organigramma">{d.data.org_units.map((u) => `${u.role_title || 'Responsabile'} · ${u.name}`).join('; ')}</Link>} />}

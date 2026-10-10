@@ -37,6 +37,22 @@ export function RalStepsEditor({ value = [], onChange }) {
   );
 }
 
+/** Tre tendine a cascata (1°, 2°, 3° livello); salva l'area più profonda scelta. */
+export function AreaSelects({ areas, value, onChange }) {
+  const byId = Object.fromEntries(areas.map((a) => [a.id, a]));
+  const chain = []; let cur = value ? byId[value] : null;
+  while (cur) { chain.unshift(cur); cur = cur.parent_id ? byId[cur.parent_id] : null; }
+  const l1 = chain[0] || null, l2 = chain[1] || null, l3 = chain[2] || null;
+  const opts = (parent) => areas.filter((a) => (parent ? a.parent_id === parent.id : a.level === 1));
+  const pick = (e, fallback) => onChange(e.target.value ? Number(e.target.value) : fallback);
+  const o2 = l1 ? opts(l1) : [], o3 = l2 ? opts(l2) : [];
+  return (<>
+    <Field label="Area (1° livello)"><select value={l1?.id || ''} onChange={(e) => pick(e, null)}><option value="">–</option>{opts(null).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></Field>
+    <Field label="Area (2° livello)" help={l1 ? `di: ${l1.name}` : 'scegli prima il 1° livello'}><select value={l2?.id || ''} disabled={!o2.length} onChange={(e) => pick(e, l1?.id || null)}><option value="">–</option>{o2.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></Field>
+    <Field label="Area (3° livello)" help={l2 ? `di: ${l2.name}` : 'scegli prima il 2° livello'}><select value={l3?.id || ''} disabled={!o3.length} onChange={(e) => pick(e, l2?.id || null)}><option value="">–</option>{o3.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></Field>
+  </>);
+}
+
 export function PersonForm({ value: v, onChange, kind }) {
   const s = set(v, onChange);
   const areas = useApi('/areas');
@@ -63,7 +79,7 @@ export function PersonForm({ value: v, onChange, kind }) {
       <Field label="CAP"><input value={v.zip || ''} onChange={(e) => s('zip', e.target.value)} /></Field>
       <Field label="Città"><input value={v.city || ''} onChange={(e) => s('city', e.target.value)} /></Field>
       <Field label="Provincia"><input value={v.province || ''} maxLength={2} onChange={(e) => s('province', e.target.value.toUpperCase())} /></Field>
-      <Field label="Area dell'azienda"><select value={v.area_id || ''} onChange={(e) => s('area_id', e.target.value ? Number(e.target.value) : null)}><option value="">–</option>{(areas.data || []).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></Field>
+      <AreaSelects areas={areas.data || []} value={v.area_id} onChange={(id) => s('area_id', id)} />
       <Field label="Riporta a (responsabile gerarchico)" help="Definisce l'organigramma delle persone"><select value={v.manager_id || ''} onChange={(e) => s('manager_id', e.target.value ? Number(e.target.value) : null)}><option value="">–</option>{(people.data || []).filter((p) => p.id !== v.id).map((p) => <option key={p.id} value={p.id}>{p.last_name} {p.first_name}</option>)}</select></Field>
       <Field label="Approva ferie, permessi e richieste" help="Vuoto = il responsabile gerarchico"><select value={v.approver_id || ''} onChange={(e) => s('approver_id', e.target.value ? Number(e.target.value) : null)}><option value="">come il responsabile</option>{(people.data || []).filter((p) => p.id !== v.id).map((p) => <option key={p.id} value={p.id}>{p.last_name} {p.first_name}</option>)}</select></Field>
       <Field label="Note" className="span2"><textarea value={v.notes || ''} onChange={(e) => s('notes', e.target.value)} /></Field>

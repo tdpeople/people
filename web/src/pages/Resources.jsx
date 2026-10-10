@@ -34,7 +34,7 @@ export default function Resources({ kind }) {
       </div>
       <div className="filters">
         <Field label="Cerca"><input placeholder="Cognome, nome, CF, mansione…" value={f.q} onChange={(e) => setF({ ...f, q: e.target.value })} /></Field>
-        <Field label="Area"><select value={f.area_id} onChange={(e) => setF({ ...f, area_id: e.target.value })}><option value="">Tutte</option>{(areas.data || []).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></Field>
+        <Field label="Area"><select value={f.area_id} onChange={(e) => setF({ ...f, area_id: e.target.value })}><option value="">Tutte</option>{(areas.data || []).map((a) => <option key={a.id} value={a.id}>{'\u00a0\u00a0'.repeat(a.level - 1)}{a.name}</option>)}</select></Field>
         <Field label="Stato"><select value={f.status} onChange={(e) => setF({ ...f, status: e.target.value })}><option value="ATTIVO,IMPEGNO">Attivi e in impegno</option><option value="ATTIVO">Solo attivi</option><option value="IMPEGNO">In impegno</option><option value="CESSATO">Cessati</option><option value="CANDIDATO">Candidati</option><option value="CANDIDATO,IMPEGNO,ATTIVO,CESSATO">Tutti</option></select></Field>
         <Field label="Sesso"><select value={f.sex} onChange={(e) => setF({ ...f, sex: e.target.value })}><option value="">Tutti</option><option value="F">Donne</option><option value="M">Uomini</option></select></Field>
       </div>
@@ -47,7 +47,7 @@ export default function Resources({ kind }) {
               <tr key={r.id} className="click" onClick={() => nav(`/risorse/${r.id}`)}>
                 <td><div className="strong">{r.last_name} {r.first_name}</div><div className="small muted">{r.tax_code || ''}{r.sex ? ` · ${SEX[r.sex]}` : ''}</div></td>
                 <td><KindBadge kind={r.kind} /> {r.status !== 'ATTIVO' && <StatusBadge status={r.status} />}</td>
-                <td>{r.area_name || <span className="muted">–</span>}</td>
+                <td title={r.area_path || ''}>{r.area_path ? <span>{r.area_root !== r.area_name && <span className="muted small">{r.area_path.slice(0, r.area_path.lastIndexOf(' › ') + 3)}</span>}{r.area_name}</span> : <span className="muted">–</span>}</td>
                 <td>{r.kind === 'DIPENDENTE' ? <>{r.job_title || '–'}<div className="small muted">{r.level ? LEVEL_LABEL[r.level] || r.level : ''}{r.contract_type && r.contract_type !== 'TIND' ? ` · ${CONTRACT[r.contract_type]}` : ''}</div></> : <>{r.discipline || '–'}<div className="small muted">{r.lp_end ? `incarico fino al ${itDate(r.lp_end)}` : ''}</div></>}</td>
                 <td>{r.manager_name || <span className="muted">–</span>}</td>
                 <td>{itDate(r.hired_at) || <span className="muted">–</span>}</td>

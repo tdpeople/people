@@ -8,10 +8,10 @@ const r = Router();
 const r2 = (n) => Math.round(n * 100) / 100;
 
 async function headcount() {
-  const rows = await many(`SELECT r.id, r.kind, r.status, r.sex, r.area_id, a.name AS area_name, r.last_name, r.first_name, r.hired_at, r.terminated_at, r.birth_date,
+  const rows = await many(`SELECT r.id, r.kind, r.status, r.sex, r.area_id, a.name AS area_name, at.root_name AS area_root, at.path AS area_path, r.last_name, r.first_name, r.hired_at, r.terminated_at, r.birth_date,
       e.contract_type, e.level, e.job_title, e.ral, e.ral_steps, e.mbo_enabled, e.mbo_pct, e.mbo_amount, e.cost_coefficient, e.weekly_hours,
       l.discipline, l.est_monthly_cost, l.fees
-    FROM resources r LEFT JOIN areas a ON a.id=r.area_id LEFT JOIN employments e ON e.resource_id=r.id LEFT JOIN lp_contracts l ON l.resource_id=r.id
+    FROM resources r LEFT JOIN areas a ON a.id=r.area_id LEFT JOIN areas_tree at ON at.id=r.area_id LEFT JOIN employments e ON e.resource_id=r.id LEFT JOIN lp_contracts l ON l.resource_id=r.id
     WHERE r.status IN ('ATTIVO','IMPEGNO') OR (r.status='CESSATO' AND r.terminated_at >= (CURRENT_DATE - INTERVAL '13 months')) ORDER BY r.last_name, r.first_name`);
   const S = await getSettings();
   const year = new Date().getFullYear();
@@ -60,7 +60,7 @@ r.get('/summary', ah(async (req, res) => {
     year: new Date().getFullYear(),
     leaving: active.filter((x) => x.terminated_at).length,
   };
-  const byArea = group(active, (x) => x.area_name);
+  const byArea = group(active, (x) => x.area_root || x.area_name);
   const byContract = group(active, (x) => (x.kind === 'LP' ? 'LP' : x.contract_type || 'TIND'), (k) => ({ TIND: 'Tempo indeterminato', TDET: 'Tempo determinato', APPRENDISTATO: 'Apprendistato', DIRIGENTE: 'Dirigente', LP: 'Libero professionista' }[k] || k));
   const byLevel = group(active.filter((x) => x.kind === 'DIPENDENTE'), (x) => x.level || 'n.d.', (k) => (k === 'Q' ? 'Quadro' : `Livello ${k}`));
   const byDiscipline = group(active.filter((x) => x.kind === 'LP'), (x) => x.discipline || 'n.d.');

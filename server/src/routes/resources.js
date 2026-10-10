@@ -175,13 +175,14 @@ async function enrich(rows, S) {
   });
 }
 
-const LIST_SQL = `SELECT r.*, a.name AS area_name, m.last_name || ' ' || m.first_name AS manager_name, ap.last_name || ' ' || ap.first_name AS approver_name,
+const LIST_SQL = `SELECT r.*, a.name AS area_name, at.path AS area_path, at.root_name AS area_root, m.last_name || ' ' || m.first_name AS manager_name, ap.last_name || ' ' || ap.first_name AS approver_name,
     e.contract_type, e.level, e.job_title, e.ral, e.ral_steps, e.monthly_payments, e.weekly_hours, e.start_date AS emp_start, e.probation_end, e.mbo_enabled, e.mbo_pct, e.mbo_amount, e.cost_coefficient, e.end_date AS emp_end,
     l.discipline, l.start_date AS lp_start, l.end_date AS lp_end, l.est_monthly_cost, l.insurance_expiry,
     (SELECT count(*)::int FROM attachments t WHERE t.resource_id=r.id) AS attachments_count,
     (SELECT count(*)::int FROM generated_documents g WHERE g.resource_id=r.id) AS documents_count
   FROM resources r
   LEFT JOIN areas a ON a.id=r.area_id
+  LEFT JOIN areas_tree at ON at.id=r.area_id
   LEFT JOIN resources m ON m.id=r.manager_id
   LEFT JOIN resources ap ON ap.id=r.approver_id
   LEFT JOIN employments e ON e.resource_id=r.id
@@ -194,7 +195,7 @@ r.get('/', ah(async (req, res) => {
   if (req.query.kind) w.push(`r.kind = ${P.add(req.query.kind)}`);
   if (req.query.status) w.push(`r.status = ANY(string_to_array(${P.add(req.query.status)}, ','))`);
   else w.push(`r.status <> 'CANDIDATO'`);
-  if (req.query.area_id) w.push(`r.area_id = ${P.add(Number(req.query.area_id))}`);
+  if (req.query.area_id) { const pid = P.add(Number(req.query.area_id)); w.push(`r.area_id IN (WITH RECURSIVE d AS (SELECT id FROM areas WHERE id = ${pid} UNION ALL SELECT a.id FROM areas a JOIN d ON a.parent_id = d.id) SELECT id FROM d)`); }
   if (req.query.sex) w.push(`r.sex = ${P.add(req.query.sex)}`);
   if (req.query.q) w.push(`(r.last_name || ' ' || r.first_name || ' ' || coalesce(r.first_name,'') || ' ' || coalesce(r.tax_code,'') || ' ' || coalesce(e.job_title,'') || ' ' || coalesce(l.discipline,'')) ILIKE ${P.add(`%${req.query.q}%`)}`);
   const rows = await many(`${LIST_SQL} WHERE ${w.join(' AND ')} ORDER BY r.last_name, r.first_name`, P.values);
