@@ -60,7 +60,7 @@ export default function ResourceDetail() {
             <Row k="Nascita" v={[r.birth_place, itDate(r.birth_date), r.birth_date ? `(${age(r.birth_date)} anni)` : ''].filter(Boolean).join(' ')} />
             <Row k="Codice fiscale" v={r.tax_code} />
             <Row k="Partita IVA" v={r.vat_number} />
-            <Row k="Telefono" v={r.phone} />
+            <Row k="Cellulare personale" v={r.phone} /><Row k="Telefono fisso" v={r.phone_office} /><Row k="Cellulare aziendale" v={r.mobile_company} />
             <Row k="Email" v={r.email} />
             <Row k="Indirizzo" v={[r.address, r.zip, r.city, r.province ? `(${r.province})` : ''].filter(Boolean).join(' ')} />
             <Row k="Area" v={r.area_path || r.area_name} />{(r.extra_areas || []).length > 0 && <Row k="Altre funzioni" v={r.extra_areas.map((x) => x.path).join(" | ")} />}
@@ -240,7 +240,7 @@ function EditPerson({ r, onClose, onSaved }) {
   const [err, setErr] = useState(null);
   const save = async () => {
     setErr(null);
-    const keys = ['last_name', 'first_name', 'sex', 'title', 'birth_place', 'birth_date', 'tax_code', 'vat_number', 'phone', 'email', 'address', 'zip', 'city', 'province', 'area_id', 'manager_id', 'approver_id', 'notes', 'hired_at', 'job_title', 'extra_area_ids'];
+    const keys = ['last_name', 'first_name', 'sex', 'title', 'birth_place', 'birth_date', 'tax_code', 'vat_number', 'phone', 'phone_office', 'mobile_company', 'email', 'address', 'zip', 'city', 'province', 'area_id', 'manager_id', 'approver_id', 'notes', 'hired_at', 'job_title', 'extra_area_ids'];
     const body = Object.fromEntries(keys.map((k) => [k, v[k] === '' ? null : v[k]]));
     try { await api.put(`/resources/${r.id}`, body); onSaved(); } catch (e) { setErr(e); }
   };

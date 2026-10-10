@@ -1,8 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth, seesCosts, canWrite } from '../auth.jsx';
-import { useApi, Card, Loading, ErrorBox, Empty, Field, KindBadge, StatusBadge, Badge } from '../components/ui.jsx';
-import { qs } from '../api.js';
+import { useApi, Card, Loading, ErrorBox, Empty, Field, KindBadge, StatusBadge, Badge, Modal, useToast } from '../components/ui.jsx';
+import { qs, api } from '../api.js';
 import { eur, itDate, CONTRACT, LEVEL_LABEL, SEX } from '../format.js';
 
 export default function Resources({ kind }) {
@@ -29,6 +29,7 @@ export default function Resources({ kind }) {
         <div><h1>{title}</h1><div className="sub">{rows.length} risorse{costs ? ` · costo annuo stimato ${eur(totCost)}` : ''}. Clicca una riga per aprire la scheda e il dossier.</div></div>
         <div className="row">
           {costs && <a className="btn ghost" href="/api/stats/costs.xlsx">Esporta Excel</a>}
+          {canWrite(user) && kind && <BulkImport kind={kind} onDone={() => list.reload()} />}
           {canWrite(user) && <Link className="btn" to={`/risorse/nuova${kind ? `?kind=${kind}` : ''}`}>+ Nuova risorsa</Link>}
         </div>
       </div>
@@ -61,4 +62,37 @@ export default function Resources({ kind }) {
       </Card>
     </div>
   );
+}
+
+/** Caricamento massivo da Excel: format scaricabile e upload con validazione dei campi obbligatori. */
+function BulkImport({ kind, onDone }) {
+  const toast = useToast();
+  const input = useRef(null);
+  const [res, setRes] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const label = kind === 'LP' ? 'liberi professionisti' : 'dipendenti';
+  const onFile = async (e) => {
+    const file = e.target.files?.[0]; e.target.value = '';
+    if (!file) return;
+    const fd = new FormData(); fd.append('file', file); fd.append('kind', kind);
+    setBusy(true);
+    try { const r = await api.post('/resources/bulk-import', fd); setRes({ ok: true, ...r }); toast(`Caricamento completato: ${r.created} nuov${r.created === 1 ? 'a' : 'e'}, ${r.updated} aggiornat${r.updated === 1 ? 'a' : 'e'}`); onDone(); }
+    catch (err) { setRes({ ok: false, message: err.message, errors: err.errors || [] }); }
+    finally { setBusy(false); }
+  };
+  return (<>
+    <a className="btn ghost" href={`/api/resources/bulk-template.xlsx?kind=${kind}`} title={`Scarica il format Excel per il caricamento massivo dei ${label}`}>Scarica format Excel</a>
+    <button className="btn ghost" disabled={busy} onClick={() => input.current?.click()} title="Carica il format compilato">{busy ? 'Caricamento…' : 'Carica Excel'}</button>
+    <input ref={input} type="file" accept=".xlsx" style={{ display: 'none' }} onChange={onFile} />
+    {res && <Modal title={res.ok ? 'Caricamento completato' : 'File rifiutato'} onClose={() => setRes(null)} footer={<button className="btn" onClick={() => setRes(null)}>Chiudi</button>}>
+      {res.ok ? <>
+        <p>{res.created} risors{res.created === 1 ? 'a creata' : 'e create'}, {res.updated} aggiornat{res.updated === 1 ? 'a' : 'e'} (stesso codice fiscale).</p>
+        <ul className="small">{(res.log || []).map((l, i) => <li key={i}>{l}</li>)}</ul>
+      </> : <>
+        <p className="strong">{res.message}</p>
+        <p className="small muted">Correggi il file e ricaricalo: nessuna riga è stata salvata. Le colonne obbligatorie sono quelle con l'asterisco nel format.</p>
+        <ul className="small">{(res.errors || []).map((l, i) => <li key={i}>{l}</li>)}</ul>
+      </>}
+    </Modal>}
+  </>);
 }

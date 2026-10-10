@@ -7,6 +7,7 @@ import { ah, bad, notFound, audit, parse } from '../lib/util.js';
 import { requireWrite, requireRole, Params } from '../lib/access.js';
 import { config } from '../config.js';
 import { parseDocument, ocrAvailable } from '../lib/contractParse.js';
+import { buildTemplate, readBulk } from '../lib/bulkImport.js';
 import { getSettings, decompose, decomposeDirigente, costCoefficient, companyCost, minimumFor, ralAt } from '../lib/payroll.js';
 import { computeDeadlines, missingDocuments } from '../lib/deadlines.js';
 import { CATEGORY_LABELS } from '../lib/seedData.js';
@@ -30,6 +31,8 @@ export const personSchema = z.object({
   tax_code: opt(z.string().max(16).transform((v) => v.toUpperCase().trim())),
   vat_number: opt(z.string().max(16)),
   phone: opt(z.string().max(40)),
+  phone_office: opt(z.string().max(40)),
+  mobile_company: opt(z.string().max(40)),
   email: opt(z.string().email().or(z.literal(''))),
   address: opt(z.string().max(200)),
   zip: opt(z.string().max(10)),
@@ -189,6 +192,58 @@ const LIST_SQL = `SELECT r.*, a.name AS area_name, at.path AS area_path, at.root
   LEFT JOIN resources ap ON ap.id=r.approver_id
   LEFT JOIN employments e ON e.resource_id=r.id
   LEFT JOIN lp_contracts l ON l.resource_id=r.id`;
+
+// ---------------- Caricamento massivo da Excel ----------------
+r.get('/bulk-template.xlsx', requireWrite, ah(async (req, res) => {
+  const kind = req.query.kind === 'LP' ? 'LP' : 'DIPENDENTE';
+  const wb = await buildTemplate(kind);
+  res.set('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet').set('Content-Disposition', `attachment; filename="format_${kind === 'LP' ? 'liberi_professionisti' : 'dipendenti'}.xlsx"`);
+  await wb.xlsx.write(res);
+  res.end();
+}));
+
+r.post('/bulk-import', requireWrite, upload.single('file'), ah(async (req, res) => {
+  if (!req.file) throw bad('File mancante');
+  const kind = req.body.kind === 'LP' ? 'LP' : 'DIPENDENTE';
+  let parsed;
+  try { parsed = await readBulk(req.file.buffer, kind); } catch (e) { throw bad(`File non leggibile: ${e.message}`); }
+  const { rows, errors } = parsed;
+  // validazione con gli stessi schemi dell'inserimento manuale
+  const valid = [];
+  for (const x of rows) {
+    try {
+      const person = parse(personSchema, x.person);
+      const employment = x.employment ? parse(employmentSchema, x.employment) : null;
+      const lp = x.lp ? parse(lpSchema, x.lp) : null;
+      valid.push({ line: x.line, person, employment, lp });
+    } catch (e) { errors.push(`Riga ${x.line}: ${e.message}`); }
+  }
+  if (errors.length) return res.status(400).json({ error: `File rifiutato: ${errors.length} problem${errors.length === 1 ? 'a' : 'i'}. Nessuna riga caricata.`, errors, rows: rows.length });
+  if (req.body.dry_run === '1') return res.json({ ok: true, rows: valid.length, errors: [] });
+  let created = 0, updated = 0; const log = [];
+  await tx(async (c) => {
+    for (const x of valid) {
+      const { person, employment, lp } = x;
+      const ex = await c.query('SELECT id FROM resources WHERE upper(tax_code)=upper($1)', [person.tax_code]);
+      let id;
+      if (ex.rows[0]) {
+        id = ex.rows[0].id;
+        const { kind: _k, status: _s, ...upd } = person;
+        const cols = Object.keys(upd);
+        await c.query(`UPDATE resources SET ${cols.map((k, i) => `${k}=$${i + 2}`).join(', ')}, updated_at=now() WHERE id=$1`, [id, ...cols.map((k) => upd[k])]);
+        updated++; log.push(`Riga ${x.line}: ${person.last_name} ${person.first_name} aggiornata`);
+      } else {
+        const cols = Object.keys(person);
+        const row = (await c.query(`INSERT INTO resources (${cols.join(',')}, created_by) VALUES (${cols.map((_, i) => `$${i + 1}`).join(',')}, $${cols.length + 1}) RETURNING id`, [...cols.map((k) => person[k]), req.user.id])).rows[0];
+        id = row.id; created++; log.push(`Riga ${x.line}: ${person.last_name} ${person.first_name} creata`);
+      }
+      if (employment) await upsertEmployment(c, id, employment);
+      if (lp) await upsertLp(c, id, lp);
+    }
+  });
+  await audit(req, 'BULK_IMPORT', 'resource', null, { kind, created, updated, file: req.file.originalname });
+  res.json({ ok: true, created, updated, log });
+}));
 
 r.get('/', ah(async (req, res) => {
   await q("UPDATE resources SET status='CESSATO', updated_at=now() WHERE terminated_at IS NOT NULL AND terminated_at <= CURRENT_DATE AND status IN ('ATTIVO','IMPEGNO')"); // cessazioni con decorrenza raggiunta

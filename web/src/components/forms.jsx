@@ -97,7 +97,9 @@ export function PersonForm({ value: v, onChange, kind }) {
       <Field label="Data di nascita"><input type="date" value={v.birth_date || ''} onChange={(e) => s('birth_date', e.target.value)} /></Field>
       <Field label="Codice fiscale"><input value={v.tax_code || ''} maxLength={16} onChange={(e) => onCf(e.target.value)} className="mono" /></Field>
       {kind === 'LP' && <Field label="Partita IVA"><input value={v.vat_number || ''} onChange={(e) => s('vat_number', e.target.value)} className="mono" /></Field>}
-      <Field label="Telefono"><input value={v.phone || ''} onChange={(e) => s('phone', e.target.value)} /></Field>
+      <Field label="Cellulare personale"><input value={v.phone || ''} onChange={(e) => s('phone', e.target.value)} /></Field>
+      <Field label="Telefono fisso"><input value={v.phone_office || ''} placeholder="interno o numero diretto" onChange={(e) => s('phone_office', e.target.value)} /></Field>
+      <Field label="Cellulare aziendale"><input value={v.mobile_company || ''} onChange={(e) => s('mobile_company', e.target.value)} /></Field>
       <Field label="Email"><input type="email" value={v.email || ''} onChange={(e) => s('email', e.target.value)} /></Field>
       <Field label="Indirizzo (via e civico)"><input value={v.address || ''} onChange={(e) => s('address', e.target.value)} /></Field>
       <Field label="CAP"><input value={v.zip || ''} onChange={(e) => s('zip', e.target.value)} /></Field>

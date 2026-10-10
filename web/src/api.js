@@ -32,6 +32,7 @@ async function doRequest(method, url, body, isForm) {
   const data = ct.includes('application/json') ? await res.json() : await res.text();
   if (!res.ok) {
     const err = new ApiError(res.status, data?.error || `Errore ${res.status}`, data?.code);
+    if (Array.isArray(data?.errors)) err.errors = data.errors;
     if (res.status === 401 && !url.startsWith('/auth/')) window.dispatchEvent(new Event('td:unauthorized'));
     if (err.code === 'PASSWORD_CHANGE_REQUIRED' || err.code === 'TOTP_SETUP_REQUIRED') window.dispatchEvent(new Event('td:onboarding'));
     throw err;
