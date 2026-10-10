@@ -4,6 +4,8 @@ import { z } from 'zod';
 import { one, many, q } from '../db.js';
 import { ah, bad, notFound, audit, parse } from '../lib/util.js';
 import { requireWrite, requireRole } from '../lib/access.js';
+import { loadOrgModel, buildSections, unitChain, chartToPptx, areaNode } from '../lib/orgChart.js';
+import { docxToPdf } from '../lib/docgen.js';
 
 const r = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 60 * 1024 * 1024 } });
@@ -45,6 +47,51 @@ export async function loadOrgTree() {
   for (const n of nodes) { if (n.parent_id && map[n.parent_id]) map[n.parent_id].children.push(n); else roots.push(n); }
   return { roots, nodes, people };
 }
+
+// ---------------- Organigramma generato dai ruoli registrati ----------------
+r.get('/chart', ah(async (_req, res) => {
+  const M = await loadOrgModel();
+  const sections = buildSections(M);
+  const units = M.areas.map((a) => ({ id: a.id, name: a.name, level: a.level, path: a.path, head: M.headOf(a) ? `${M.headOf(a).first_name} ${M.headOf(a).last_name}` : null, headcount: M.subtreeMembers(a.id).length }));
+  res.json({ sections, units, people: M.people.length, ceo: M.ceo ? { id: M.ceo.id, name: `${M.ceo.first_name} ${M.ceo.last_name}` } : null });
+}));
+
+r.get('/chart/unit/:areaId', ah(async (req, res) => {
+  const M = await loadOrgModel();
+  const a = M.areaById[Number(req.params.areaId)];
+  if (!a) throw notFound('Area inesistente');
+  res.json({ title: a.name, subtitle: `Unità produttiva · ${a.path}`, tree: unitChain(M, a) });
+}));
+
+/** Esporta una sezione (completo | direzione | area-<id> | unit-<id>) in PPTX o PDF. */
+r.get('/chart/export', ah(async (req, res) => {
+  const scope = String(req.query.scope || 'completo');
+  const format = req.query.format === 'pdf' ? 'pdf' : 'pptx';
+  const showStaff = req.query.staff !== '0';
+  const M = await loadOrgModel();
+  let section = null;
+  if (scope.startsWith('unit-')) {
+    const a = M.areaById[Number(scope.slice(5))]; if (!a) throw notFound('Area inesistente');
+    const tree = unitChain(M, a);
+    // il personale come riquadri in fondo alla catena
+    let last = tree; while (last.children?.length) last = last.children[0];
+    if (showStaff) last.children = (last.staff || []).map((p) => ({ id: `p${p.id}`, name: 'Personale', head: p, staff: [], children: [], headcount: 1 }));
+    last.staff = [];
+    section = { title: a.name, subtitle: `Unità produttiva · ${a.path}`, tree };
+  } else {
+    section = buildSections(M).find((s) => s.key === scope);
+    if (!section) throw notFound('Sezione inesistente');
+  }
+  const pptx = await chartToPptx({ ...section, showStaff });
+  const base = `Organigramma - ${section.title}`.replace(/[^\w\s.-]/g, '').trim();
+  if (format === 'pptx') {
+    res.set('Content-Type', 'application/vnd.openxmlformats-officedocument.presentationml.presentation').set('Content-Disposition', `attachment; filename="${base}.pptx"`);
+    return res.send(pptx);
+  }
+  const pdf = await docxToPdf(pptx, 'pptx');
+  res.set('Content-Type', 'application/pdf').set('Content-Disposition', `${req.query.inline ? 'inline' : 'attachment'}; filename="${base}.pdf"`);
+  res.send(pdf);
+}));
 
 r.get('/', ah(async (_req, res) => {
   const { roots, nodes } = await loadOrgTree();

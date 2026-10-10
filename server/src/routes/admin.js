@@ -76,10 +76,10 @@ r.put('/settings', requireRole('ADMIN'), ah(async (req, res) => {
 }));
 
 // ---------------- Aree e sedi ----------------
-r.get('/areas', ah(async (_req, res) => res.json(await many(`SELECT a.*, t.path, t.root_id, t.root_name,
+r.get('/areas', ah(async (_req, res) => res.json(await many(`SELECT a.*, t.path, t.root_id, t.root_name, h.last_name || ' ' || h.first_name AS head_name,
   (SELECT count(*)::int FROM resources r WHERE r.status IN ('ATTIVO','IMPEGNO') AND (r.area_id=a.id OR r.id IN (SELECT resource_id FROM resource_areas WHERE area_id=a.id))) AS headcount,
   (SELECT count(*)::int FROM areas c WHERE c.parent_id=a.id) AS children
-  FROM areas a JOIN areas_tree t ON t.id=a.id ORDER BY t.sort_path, a.name`))));
+  FROM areas a JOIN areas_tree t ON t.id=a.id LEFT JOIN resources h ON h.id=a.head_resource_id ORDER BY t.sort_path, a.name`))));
 r.post('/areas', requireWrite, ah(async (req, res) => {
   const d = parse(z.object({ name: z.string().min(2).max(120), sort_order: z.number().int().default(100), parent_id: z.number().int().nullable().optional() }), req.body);
   let level = 1;
@@ -105,7 +105,7 @@ r.put('/areas/:id', requireWrite, ah(async (req, res) => {
   const id = Number(req.params.id);
   const cur = await one('SELECT * FROM areas WHERE id=$1', [id]);
   if (!cur) throw notFound();
-  const d = parse(z.object({ name: z.string().trim().min(2).max(120).optional(), sort_order: z.number().int().optional(), active: z.boolean().optional(), parent_id: z.number().int().nullable().optional() }), req.body);
+  const d = parse(z.object({ name: z.string().trim().min(2).max(120).optional(), sort_order: z.number().int().optional(), active: z.boolean().optional(), parent_id: z.number().int().nullable().optional(), head_resource_id: z.number().int().nullable().optional() }), req.body);
   if (d.parent_id !== undefined) {
     // spostamento nella gerarchia: niente cicli, massimo tre livelli (contando anche i discendenti)
     let newLevel = 1;

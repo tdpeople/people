@@ -30,10 +30,10 @@ export function renderDocx(kind, data) {
 
 // Coda sequenziale: LibreOffice non gestisce bene conversioni concorrenti sullo stesso profilo
 let queue = Promise.resolve();
-export function docxToPdf(docxBuffer) {
+export function docxToPdf(docxBuffer, ext = 'docx') {
   const job = async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tdc-'));
-    const input = path.join(dir, 'doc.docx');
+    const input = path.join(dir, `doc.${ext}`);
     fs.writeFileSync(input, docxBuffer);
     const profile = path.join(os.tmpdir(), 'tdc-lo-profile');
     await new Promise((resolve, reject) => {

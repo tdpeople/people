@@ -9,7 +9,9 @@
     "migrate": "node src/migrate.js",
     "test": "node --test test/*.test.js"
   },
-  "engines": { "node": ">=20" },
+  "engines": {
+    "node": ">=20"
+  },
   "dependencies": {
     "bcryptjs": "^3.0.3",
     "connect-pg-simple": "^10.0.0",
@@ -25,6 +27,7 @@
     "pdf-parse": "^1.1.1",
     "pg": "^8.23.0",
     "pizzip": "^3.2.0",
+    "pptxgenjs": "^4.0.1",
     "qrcode": "^1.5.4",
     "yauzl": "^3.2.0",
     "zod": "^4.6.5"
