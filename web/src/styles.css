@@ -328,3 +328,12 @@ th.sortable:hover { color: var(--teal); }
 @media print { .side, .topbar, .org-node .tools, .page-head .btn, .tabs { display: none !important; } .org-wrap { overflow: visible; } }
 .btn.disabled { opacity: .6; pointer-events: none; }
 label.btn { cursor: pointer; }
+
+/* Scheda risorsa: tre box della stessa altezza, checklist a tutta larghezza su tre colonne */
+.grid.scheda > .card { display: flex; flex-direction: column; }
+.grid.scheda > .card > .bd { flex: 1; }
+.card.mt { margin-top: 16px; }
+.checklist3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 28px; }
+.checklist3 .ck { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 13.5px; }
+@media (max-width: 1100px) { .checklist3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 700px) { .checklist3 { grid-template-columns: 1fr; } }

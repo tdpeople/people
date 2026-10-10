@@ -51,8 +51,8 @@ export default function ResourceDetail() {
         {[['scheda', 'Scheda'], ['dossier', `Dossier (${attachments.length})`], ['documenti', `Documenti generati (${documents.length})`], ['scadenze', `Scadenze (${deadlines.length})`], ['lettere', `Lettere di impegno (${letters.length})`]].map(([k, l]) => <button key={k} className={tab === k ? 'on' : ''} onClick={() => setTab(k)}>{l}</button>)}
       </div>
 
-      {tab === 'scheda' && (
-        <div className="grid g3" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
+      {tab === 'scheda' && (<>
+        <div className="grid g3 scheda" style={{ gridTemplateColumns: '1fr 1fr 1fr', alignItems: 'stretch' }}>
           <Card title="Anagrafica">
             <Row k="Sesso" v={SEX[r.sex]} />
             <Row k="Nascita" v={[r.birth_place, itDate(r.birth_date), r.birth_date ? `(${age(r.birth_date)} anni)` : ''].filter(Boolean).join(' ')} />
@@ -110,7 +110,6 @@ export default function ResourceDetail() {
               </>}
             </Card>
           )}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {costs && (
               <Card title="Retribuzione e costo azienda">
                 {isEmp && e ? <>
@@ -136,12 +135,15 @@ export default function ResourceDetail() {
                 </> : <Empty>Dati economici non disponibili</Empty>}
               </Card>
             )}
-            <Card title="Completezza del dossier" flush>
-              <table className="t"><tbody>{checklist.filter((c) => c.required || c.present).map((c) => <tr key={c.category}><td>{c.label}{c.renew_months ? <span className="small muted"> · rinnovo {c.renew_months} mesi</span> : ''}</td><td className="num">{c.present ? <Badge tone={c.expires_at && c.expires_at < new Date().toISOString().slice(0, 10) ? 'red' : 'green'}>{c.count} doc{c.expires_at ? ` · ${itDate(c.expires_at)}` : ''}</Badge> : <Badge tone={c.required ? 'red' : 'grey'}>{c.required ? 'Mancante' : '–'}</Badge>}</td></tr>)}</tbody></table>
-            </Card>
-          </div>
         </div>
-      )}
+        <Card title="Completezza del dossier" className="mt" actions={<span className="small muted">{checklist.filter((c) => c.required && !c.present).length} documenti obbligatori mancanti</span>}>
+          <div className="checklist3">
+            {checklist.filter((c) => c.required || c.present).map((c) => (
+              <div key={c.category} className="ck"><span>{c.label}{c.renew_months ? <span className="small muted"> · rinnovo {c.renew_months} mesi</span> : ''}</span>{c.present ? <Badge tone={c.expires_at && c.expires_at < new Date().toISOString().slice(0, 10) ? 'red' : 'green'}>{c.count} doc{c.expires_at ? ` · ${itDate(c.expires_at)}` : ''}</Badge> : <Badge tone={c.required ? 'red' : 'grey'}>{c.required ? 'Mancante' : '–'}</Badge>}</div>
+            ))}
+          </div>
+        </Card>
+      </>)}
 
       {tab === 'dossier' && (
         <Card title="Dossier online" actions={writer && <button className="btn" onClick={() => setModal('upload')}><Icon name="upload" />Carica allegato</button>} flush>
