@@ -4,6 +4,7 @@ Uso: python3 tools/build_templates.py <cartella sorgenti> <cartella destinazione
 Sorgenti attese: zezza.docx (contratto dipendente), mbo.docx, impegno.docx, lp_cupelli.docx, masseria.docx.
 """
 import copy
+import os
 import sys
 from docx import Document
 
@@ -305,4 +306,39 @@ build_impegno()
 build_lp()
 build_dirigente()
 build_mbo_dirigente()
+
+
+def apply_letterhead(path, letterhead):
+    """Sostituisce intestazione e piè di pagina con quelli della carta intestata ufficiale (tools/assets/carta_intestata.docx)."""
+    import zipfile, shutil, os, tempfile
+    src = zipfile.ZipFile(letterhead)
+    def widen(xml):
+        # la colonna dei recapiti è stretta: in alcuni documenti LibreOffice manda a capo le email; la allarghiamo di 305 twip a scapito della colonna del logo
+        for a, b in [('w:w="2295"', 'w:w="2600"'), ('w:w="2595"', 'w:w="2900"'), ('w:w="2805"', 'w:w="3110"'), ('w:w="5370"', 'w:w="5065"')]:
+            xml = xml.replace(a, b)
+        return xml
+    parts = {n: src.read(n) for n in src.namelist() if n.startswith('word/header1.xml') or n.startswith('word/footer1.xml') or n.startswith('word/_rels/header1.xml.rels') or n.startswith('word/_rels/footer1.xml.rels') or n.startswith('word/media/')}
+    if 'word/header1.xml' in parts:
+        parts['word/header1.xml'] = widen(parts['word/header1.xml'].decode('utf-8')).encode('utf-8')
+    tmp = path + '.tmp'
+    with zipfile.ZipFile(path) as zin, zipfile.ZipFile(tmp, 'w', zipfile.ZIP_DEFLATED) as zout:
+        done = set()
+        for item in zin.infolist():
+            if item.filename in parts:
+                zout.writestr(item, parts[item.filename]); done.add(item.filename)
+            elif item.filename == 'word/_rels/footer1.xml.rels' and 'word/_rels/footer1.xml.rels' not in parts:
+                continue
+            else:
+                zout.writestr(item, zin.read(item.filename))
+        for n, data in parts.items():
+            if n not in done:
+                zout.writestr(n, data)
+    os.replace(tmp, path)
+
+
+LETTERHEAD = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'assets', 'carta_intestata.docx')
+if os.path.exists(LETTERHEAD):
+    for name in ['contratto_dipendente', 'mbo', 'lettera_impegno', 'contratto_lp', 'contratto_dirigente', 'mbo_dirigente']:
+        apply_letterhead(f'{DST}/{name}.docx', LETTERHEAD)
+    print('Carta intestata applicata a tutti i template')
 print('Template generati in', DST)
