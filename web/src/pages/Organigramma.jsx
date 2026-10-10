@@ -6,7 +6,7 @@ import { useApi, Card, Field, ErrorBox, Loading, Empty, Badge, Modal, useToast, 
 
 /** Riquadro di un'area: referente, ruolo, personale (dai ruoli registrati nelle schede). */
 function AreaCard({ n, root, showStaff }) {
-  const cls = root ? 'k-DIREZIONE' : n.level === 2 ? 'k-LINEA' : n.level === 3 ? 'k-FUNZIONE' : 'k-SEDE';
+  const cls = root ? 'k-DIREZIONE' : n.kind === 'STAFF' ? 'k-FUNZIONE staffunit' : n.level <= 2 ? 'k-LINEA' : 'k-SEDE';
   return (
     <div className={`org-node ${cls} ${n.collapsed ? 'collapsed' : ''}`} style={{ width: 210 }}>
       <div className="unit">{n.name}</div>
@@ -27,6 +27,7 @@ function AreaTree({ n, root, showStaff }) {
   return (
     <li>
       <AreaCard n={n} root={root} showStaff={showStaff} />
+      {n.staff_units?.length > 0 && <div className="org-staff" title="Tecnostruttura (funzioni di staff)">{n.staff_units.map((c) => <div key={c.id} className="org-staff-item"><AreaCard n={c} showStaff={showStaff} />{c.children?.length > 0 && <ul className="org-tree org-sub">{c.children.map((k) => <AreaTree key={k.id} n={k} showStaff={showStaff} />)}</ul>}</div>)}</div>}
       {n.children?.length > 0 && <ul>{n.children.map((c) => <AreaTree key={c.id} n={c} showStaff={showStaff} />)}</ul>}
     </li>
   );
@@ -91,7 +92,7 @@ export default function Organigramma() {
       {current && (
         <Card title={current.title} flush actions={exportLinks}>
           <div className="org-wrap" ref={wrapRef}><ul className="org-tree"><AreaTree n={current.tree} root showStaff={showStaff} /></ul></div>
-          <div className="bd small muted">{current.subtitle}. Il referente di ogni area si imposta in Impostazioni (Modifica area); se assente viene dedotto da chi, tra le persone dell'area, non riporta a un collega della stessa area. Le persone con doppia funzione compaiono in tutte le aree di appartenenza.</div>
+          <div className="bd small muted">{current.subtitle}. Ogni sezione parte dall'Amministratore Delegato; la tecnostruttura (funzioni di staff, riquadri nel riquadro tratteggiato) sta in alto, le aree operative nel pettine sottostante; tecnostruttura e operativa si impostano per area in Impostazioni. Il referente di ogni area si imposta in Impostazioni (Modifica area); se assente viene dedotto da chi, tra le persone dell'area, non riporta a un collega della stessa area. Le persone con doppia funzione compaiono in tutte le aree di appartenenza.</div>
         </Card>
       )}
 

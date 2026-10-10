@@ -81,10 +81,10 @@ r.get('/areas', ah(async (_req, res) => res.json(await many(`SELECT a.*, t.path,
   (SELECT count(*)::int FROM areas c WHERE c.parent_id=a.id) AS children
   FROM areas a JOIN areas_tree t ON t.id=a.id LEFT JOIN resources h ON h.id=a.head_resource_id ORDER BY t.sort_path, a.name`))));
 r.post('/areas', requireWrite, ah(async (req, res) => {
-  const d = parse(z.object({ name: z.string().min(2).max(120), sort_order: z.number().int().default(100), parent_id: z.number().int().nullable().optional() }), req.body);
+  const d = parse(z.object({ name: z.string().min(2).max(120), sort_order: z.number().int().default(100), parent_id: z.number().int().nullable().optional(), kind: z.enum(['STAFF', 'LINEA']).default('LINEA') }), req.body);
   let level = 1;
   if (d.parent_id) { const p = await one('SELECT level FROM areas WHERE id=$1', [d.parent_id]); if (!p) throw bad('Area di livello superiore inesistente'); if (p.level >= 3) throw bad('Sono previsti al massimo tre livelli'); level = p.level + 1; }
-  const row = await one('INSERT INTO areas(name, sort_order, parent_id, level) VALUES ($1,$2,$3,$4) RETURNING *', [d.name, d.sort_order, d.parent_id || null, level]);
+  const row = await one('INSERT INTO areas(name, sort_order, parent_id, level, kind) VALUES ($1,$2,$3,$4,$5) RETURNING *', [d.name, d.sort_order, d.parent_id || null, level, d.kind]);
   await audit(req, 'AREA_CREATE', 'area', row.id, d);
   res.status(201).json(row);
 }));
@@ -105,7 +105,7 @@ r.put('/areas/:id', requireWrite, ah(async (req, res) => {
   const id = Number(req.params.id);
   const cur = await one('SELECT * FROM areas WHERE id=$1', [id]);
   if (!cur) throw notFound();
-  const d = parse(z.object({ name: z.string().trim().min(2).max(120).optional(), sort_order: z.number().int().optional(), active: z.boolean().optional(), parent_id: z.number().int().nullable().optional(), head_resource_id: z.number().int().nullable().optional() }), req.body);
+  const d = parse(z.object({ name: z.string().trim().min(2).max(120).optional(), sort_order: z.number().int().optional(), active: z.boolean().optional(), parent_id: z.number().int().nullable().optional(), head_resource_id: z.number().int().nullable().optional(), kind: z.enum(['STAFF', 'LINEA']).optional() }), req.body);
   if (d.parent_id !== undefined) {
     // spostamento nella gerarchia: niente cicli, massimo tre livelli (contando anche i discendenti)
     let newLevel = 1;

@@ -5,7 +5,7 @@ const fullName = (p) => `${p.first_name} ${p.last_name}`;
 
 /** Carica aree e persone attive con tutto ciò che serve a costruire gli organigrammi. */
 export async function loadOrgModel() {
-  const areas = await many(`SELECT a.id, a.name, a.parent_id, a.level, a.head_resource_id, t.path, t.sort_path FROM areas a JOIN areas_tree t ON t.id=a.id ORDER BY t.sort_path, a.name`);
+  const areas = await many(`SELECT a.id, a.name, a.parent_id, a.level, a.kind, a.head_resource_id, t.path, t.sort_path FROM areas a JOIN areas_tree t ON t.id=a.id ORDER BY t.sort_path, a.name`);
   const people = await many(`SELECT r.id, r.kind, r.status, r.first_name, r.last_name, r.area_id, r.manager_id, r.approver_id,
       coalesce(e.job_title, l.discipline) AS job_title, e.contract_type, e.level,
       coalesce((SELECT array_agg(ra.area_id) FROM resource_areas ra WHERE ra.resource_id=r.id), '{}') AS extra_area_ids
@@ -55,32 +55,39 @@ export function areaNode(M, area, { depth = Infinity, collapseChildren = false }
   const childHeads = new Set(kids.map((c) => M.headOf(c)?.id).filter(Boolean));
   const staff = (M.membersOf[area.id] || []).filter((p) => p.id !== head?.id && !childHeads.has(p.id));
   const node = {
-    id: area.id, name: area.name, level: area.level, path: area.path,
+    id: area.id, name: area.name, level: area.level, kind: area.kind, path: area.path,
     head: personOut(head),
     staff: staff.map(personOut),
     headcount: M.subtreeMembers(area.id).length,
-    children: [],
+    staff_units: [], // tecnostruttura (funzioni di staff): in alto
+    children: [], // aree operative: nel pettine
   };
-  if (depth > 0) node.children = kids.map((c) => areaNode(M, c, { depth: collapseChildren ? 0 : depth - 1, collapseChildren }));
+  if (depth > 0) {
+    const mk = (c) => areaNode(M, c, { depth: collapseChildren ? 0 : depth - 1, collapseChildren });
+    node.staff_units = kids.filter((c) => c.kind === 'STAFF').map(mk);
+    node.children = kids.filter((c) => c.kind !== 'STAFF').map(mk);
+  }
   return node;
+}
+
+/** Catena dal vertice fino all'area (CEO → aree superiori → area): ogni sezione parte dall'Amministratore Delegato. */
+export function chainTo(M, area, leaf) {
+  const chain = []; let a = area.parent_id ? M.areaById[area.parent_id] : null;
+  while (a) { chain.unshift(a); a = a.parent_id ? M.areaById[a.parent_id] : null; }
+  const nodes = chain.map((x) => ({ id: x.id, name: x.name, level: x.level, kind: x.kind, head: personOut(M.headOf(x)), staff: [], staff_units: [], children: [] }));
+  if (M.ceo && (nodes[0] ? nodes[0].head?.id !== M.ceo.id : leaf.head?.id !== M.ceo.id)) nodes.unshift({ id: 0, name: 'Amministratore Delegato', level: 0, kind: 'LINEA', head: personOut(M.ceo), staff: [], staff_units: [], children: [] });
+  nodes.push(leaf);
+  const dedup = [];
+  for (const n of nodes) { const prev = dedup[dedup.length - 1]; if (prev && prev.head && n.head && prev.head.id === n.head.id && n !== leaf) { prev.name = `${prev.name} · ${n.name}`; continue; } dedup.push(n); }
+  for (let i = 0; i < dedup.length - 1; i++) dedup[i].children = [dedup[i + 1]];
+  return dedup[0];
 }
 
 /** Catena verticale dell'unità produttiva: CEO → ... → area madre (referente) → unità (referente) → personale. */
 export function unitChain(M, area) {
-  const chain = []; let a = area;
-  while (a) { chain.unshift(a); a = a.parent_id ? M.areaById[a.parent_id] : null; }
-  const nodes = chain.map((x) => ({ id: x.id, name: x.name, level: x.level, head: personOut(M.headOf(x)), staff: [], children: [] }));
-  // il CEO in cima se non coincide già con il referente della radice
-  if (M.ceo && nodes[0]?.head?.id !== M.ceo.id) nodes.unshift({ id: 0, name: 'Amministratore Delegato', level: 0, head: personOut(M.ceo), staff: [], children: [] });
-  // niente riquadri duplicati quando la stessa persona guida due livelli consecutivi
-  const dedup = [];
-  for (const n of nodes) { const prev = dedup[dedup.length - 1]; if (prev && prev.head && n.head && prev.head.id === n.head.id) { prev.name = `${prev.name} · ${n.name}`; prev.id = n.id; continue; } dedup.push(n); }
-  const last = dedup[dedup.length - 1];
   const head = M.headOf(area);
-  const members = M.subtreeMembers(area.id).filter((p) => p.id !== head?.id);
-  last.staff = members.map(personOut);
-  for (let i = 0; i < dedup.length - 1; i++) dedup[i].children = [dedup[i + 1]];
-  return dedup[0];
+  const leaf = { id: area.id, name: area.name, level: area.level, kind: area.kind, head: personOut(head), staff: M.subtreeMembers(area.id).filter((p) => p.id !== head?.id).map(personOut), staff_units: [], children: [] };
+  return chainTo(M, area, leaf);
 }
 
 /** Sezioni dell'organigramma: struttura completa, direzione, una per linea con sotto-aree. */
@@ -89,14 +96,13 @@ export function buildSections(M) {
   const sections = [];
   if (!roots.length) return sections;
   const root = roots[0];
-  sections.push({ key: 'completo', title: 'Struttura completa', subtitle: 'Tutte le aree, i referenti e il personale', tree: roots.length === 1 ? areaNode(M, root) : { id: 0, name: 'Toscana Diagnostica', head: personOut(M.ceo), staff: [], children: roots.map((r) => areaNode(M, r)) } });
+  sections.push({ key: 'completo', title: 'Struttura completa', subtitle: 'Tecnostruttura, aree operative, referenti e personale', tree: roots.length === 1 ? areaNode(M, root) : { id: 0, name: 'Toscana Diagnostica', head: personOut(M.ceo), staff: [], staff_units: [], children: roots.map((r) => areaNode(M, r)) } });
   const level2 = M.childrenOf[root.id] || [];
-  const staffFns = level2.filter((a) => !(M.childrenOf[a.id] || []).length);
-  const lines = level2.filter((a) => (M.childrenOf[a.id] || []).length);
   const dirNode = areaNode(M, root, { depth: 0 });
-  dirNode.children = [...staffFns.map((a) => areaNode(M, a, { depth: 0 })), ...lines.map((a) => ({ ...areaNode(M, a, { depth: 0 }), collapsed: true }))];
-  sections.push({ key: 'direzione', title: root.name, subtitle: 'Direzione, funzioni di staff e linee', tree: dirNode });
-  for (const a of lines) sections.push({ key: `area-${a.id}`, title: a.name, subtitle: `Referente, sotto-aree e personale`, tree: areaNode(M, a) });
+  dirNode.staff_units = level2.filter((a) => a.kind === 'STAFF').map((a) => areaNode(M, a, { depth: 0 }));
+  dirNode.children = level2.filter((a) => a.kind !== 'STAFF').map((a) => ({ ...areaNode(M, a, { depth: 0 }), staff: [], collapsed: true }));
+  sections.push({ key: 'direzione', title: root.name, subtitle: 'Tecnostruttura in alto, aree operative nel pettine', tree: dirNode });
+  for (const a of level2.filter((a) => a.kind !== 'STAFF' && (M.childrenOf[a.id] || []).length)) sections.push({ key: `area-${a.id}`, title: a.name, subtitle: 'Dal vertice all\'area: referente, sotto-aree e personale', tree: chainTo(M, a, areaNode(M, a)) });
   return sections;
 }
 
@@ -104,7 +110,7 @@ export function buildSections(M) {
 const PETROL = '1B505F', TEAL = '71B1BD', LIGHT = 'EDF5F7', INK = '1A3C47', GREY = '666666';
 const MAX_STAFF = 12;
 
-const clone = (n) => ({ ...n, children: (n.children || []).map(clone) });
+const clone = (n) => ({ ...n, staff_units: (n.staff_units || []).map(clone), children: (n.children || []).map(clone) });
 
 /** Layout ad albero (pollici): larghezza dei sottoalberi, altezze per riga, posizioni centrate. */
 function layout(tree, { boxW, gapX, showStaff }) {
@@ -112,7 +118,7 @@ function layout(tree, { boxW, gapX, showStaff }) {
   const rows = (t, k = 1) => Math.ceil(((t || '').length || 1) / (cpl * k));
   const boxH = (n) => 0.22 + rows(n.name) * 0.15 + rows(n.head?.name || 'Referente da definire') * 0.14 + (n.head?.job_title ? rows(n.head.job_title, 1.15) * 0.12 : 0) + (n.collapsed || (!showStaff && n.headcount > 1 && !(n.children || []).length) ? 0.12 : 0)
     + (showStaff && n.staff?.length ? n.staff.slice(0, MAX_STAFF).reduce((a, p) => a + rows(`${p.name}${p.job_title ? ` · ${p.job_title}` : ''}`, 1.2) * 0.12, 0) + (n.staff.length > MAX_STAFF ? 0.12 : 0) + 0.06 : 0);
-  const width = (n) => { n._kids = n.children || []; n._w = !n._kids.length ? boxW : Math.max(boxW, n._kids.reduce((a, c) => a + width(c), 0) + gapX * (n._kids.length - 1)); return n._w; };
+  const width = (n) => { n._kids = [...(n._root ? [] : (n.staff_units || [])), ...(n.children || [])]; n._w = !n._kids.length ? boxW : Math.max(boxW, n._kids.reduce((a, c) => a + width(c), 0) + gapX * (n._kids.length - 1)); return n._w; };
   width(tree);
   const place = (n, x0, depth) => { n._depth = depth; n._x = x0 + n._w / 2; n._h = boxH(n); let x = x0 + (n._w - (n._kids.reduce((a, c) => a + c._w, 0) + gapX * (n._kids.length - 1))) / 2; for (const c of n._kids) { place(c, x, depth + 1); x += c._w + gapX; } };
   place(tree, 0, 0);
@@ -153,19 +159,25 @@ const hline = (pptx, slide, x1, x2, y) => { if (Math.abs(x2 - x1) > 0.01) slide.
 function drawTree(pptx, slide, tree, { title, subtitle, showStaff }) {
   const areaW = 12.5, areaH = 5.85, top = 1.15, gapY = 0.4;
   const minS = showStaff ? 0.72 : 0.6;
+  const STAFF_GAP = 0.6; // varco centrale per il tronco
   const attempt = (boxW, gapX, rowsN) => {
+    tree._root = true;
+    const staffUnits = tree.staff_units || [];
     const kids = tree.children || [];
     const per = Math.ceil(kids.length / rowsN);
     const groups = []; for (let i = 0; i < kids.length; i += per) groups.push(kids.slice(i, i + per));
     const forests = groups.map((g) => { const v = { name: '', children: g, _virtual: true }; const L = layout(v, { boxW, gapX, showStaff }); return { v, L }; });
-    const rootL = layout({ ...tree, children: [] }, { boxW, gapX, showStaff });
-    const totalW = Math.max(boxW, ...forests.map((f) => f.L.totalW));
+    const rootL = layout({ ...tree, children: [], staff_units: [] }, { boxW, gapX, showStaff });
+    const staffL = staffUnits.length ? layout({ name: '', _virtual: true, _root: true, children: staffUnits }, { boxW, gapX, showStaff }) : null;
+    const nHalf = Math.ceil(staffUnits.length / 2);
+    const staffW = staffL ? 2 * (nHalf * boxW + Math.max(0, nHalf - 1) * gapX) + STAFF_GAP : 0;
+    const totalW = Math.max(boxW, staffW, ...forests.map((f) => f.L.totalW));
     const sW = Math.min(1, areaW / totalW);
-    // altezza: radice + per ogni gruppo le sue righe (saltando la riga virtuale)
-    let totalH = rootL.rowH[0];
+    // altezza: radice + tecnostruttura + per ogni gruppo le sue righe (saltando la riga virtuale)
+    let totalH = rootL.rowH[0] + (staffL ? gapY + staffL.rowH[1] : 0);
     for (const f of forests) totalH += gapY + f.L.rowH.slice(1).reduce((a, h) => a + h, 0) + gapY * (f.L.rowH.length - 2);
     const s = Math.min(sW, areaH / totalH);
-    return { s, forests, rootL, boxW, gapX };
+    return { s, forests, rootL, staffL, staffUnits, boxW, gapX };
   };
   let best = null;
   for (const [boxW, gapX] of showStaff ? [[2.1, 0.2], [1.8, 0.12]] : [[1.75, 0.2], [1.45, 0.12]]) {
@@ -177,13 +189,28 @@ function drawTree(pptx, slide, tree, { title, subtitle, showStaff }) {
   }
   if (!best || best.s < minS) return false;
   const { s, boxW, gapX } = best;
-  const { forests, rootL } = attempt(boxW, gapX, best.rowsN); // ricalcolo: i tentativi successivi avevano sovrascritto le posizioni
+  const { forests, rootL, staffL, staffUnits } = attempt(boxW, gapX, best.rowsN); // ricalcolo: i tentativi successivi avevano sovrascritto le posizioni
   header(slide, { title, subtitle });
   const cx = 0.4 + areaW / 2;
   // radice
   const rootH = rootL.rowH[0] * s;
   drawBox(pptx, slide, tree, { x: cx - (boxW * s) / 2, y: top, w: boxW * s, h: rootH, s, isRoot: true, showStaff });
   let y = top + rootH;
+  // tecnostruttura: riquadri ai lati del tronco, uniti da una barra orizzontale
+  if (staffL) {
+    const rowTop = y + gapY * s;
+    const rowH = staffL.rowH[1] * s;
+    const nL = Math.ceil(staffUnits.length / 2);
+    const left = staffUnits.slice(0, nL), right = staffUnits.slice(nL);
+    const place = (group, dir) => group.map((n, i) => ({ n, x: dir < 0 ? cx - STAFF_GAP * s / 2 - (i + 1) * boxW * s - i * gapX * s : cx + STAFF_GAP * s / 2 + i * (boxW + gapX) * s }));
+    const boxes = [...place(left, -1), ...place(right, 1)];
+    const ym = rowTop + rowH / 2;
+    const xs = boxes.map((b) => b.x + (boxW * s) / 2);
+    hline(pptx, slide, Math.min(cx, ...xs), Math.max(cx, ...xs), ym);
+    for (const b of boxes) drawBox(pptx, slide, b.n, { x: b.x, y: rowTop, w: boxW * s, h: b.n._h * s, s, isRoot: false, showStaff });
+    vline(pptx, slide, cx, top + rootH, rowTop + rowH);
+    y = rowTop + rowH;
+  }
   // con più righe: tronco laterale a sinistra, per non attraversare i riquadri
   const multi = forests.length > 1;
   const xl = multi ? Math.min(...forests.map((f) => cx - (f.L.totalW * s) / 2)) - 0.12 : cx;
@@ -197,7 +224,7 @@ function drawTree(pptx, slide, tree, { title, subtitle, showStaff }) {
     const ym = rowTop - (gapY * s) / 2;
     // tronco dalla radice alla barra della riga, barra orizzontale, discese
     const xs = f.v._kids.map((c) => px(c) + (boxW * s) / 2);
-    if (!multi) { vline(pptx, slide, cx, top + rootH, ym); hline(pptx, slide, Math.min(cx, ...xs), Math.max(cx, ...xs), ym); }
+    if (!multi) { vline(pptx, slide, cx, y, ym); hline(pptx, slide, Math.min(cx, ...xs), Math.max(cx, ...xs), ym); }
     else { if (firstBar === null) firstBar = ym; lastBar = ym; hline(pptx, slide, xl, Math.max(...xs), ym); }
     for (const c of f.v._kids) vline(pptx, slide, px(c) + (boxW * s) / 2, ym, py(c));
     for (const n of f.L.all) {
@@ -210,7 +237,7 @@ function drawTree(pptx, slide, tree, { title, subtitle, showStaff }) {
     }
     y = yy - gapY * s;
   }
-  if (multi) { vline(pptx, slide, cx, top + rootH, firstBar); vline(pptx, slide, xl, firstBar, lastBar); }
+  if (multi) { vline(pptx, slide, cx, staffL ? top + rootH : top + rootH, firstBar); vline(pptx, slide, xl, firstBar, lastBar); }
   return true;
 }
 
@@ -221,15 +248,15 @@ function addSection(pptx, section, showStaff) {
   if (drawTree(pptx, slide, tree, { ...section, showStaff })) return;
   // vista d'insieme senza personale
   const overview = clone(section.tree);
-  const strip = (n) => { n.staff = []; n.children.forEach(strip); };
+  const strip = (n) => { n.staff = []; n.children.forEach(strip); (n.staff_units || []).forEach(strip); };
   strip(overview);
   if (!drawTree(pptx, slide, overview, { title: section.title, subtitle: `${section.subtitle || ''} · vista d'insieme`, showStaff: false })) {
-    const collapsed = clone(section.tree); strip(collapsed); collapsed.children.forEach((c) => { c.collapsed = true; c.children = []; });
+    const collapsed = clone(section.tree); strip(collapsed); [...collapsed.children, ...(collapsed.staff_units || [])].forEach((c) => { c.collapsed = true; c.children = []; c.staff_units = []; });
     drawTree(pptx, slide, collapsed, { title: section.title, subtitle: `${section.subtitle || ''} · vista d'insieme`, showStaff: false });
   }
   if (!showStaff) return;
-  for (const c of section.tree.children || []) {
-    if (!(c.staff?.length || c.children?.length)) continue;
+  for (const c of [...(section.tree.staff_units || []), ...(section.tree.children || [])]) {
+    if (!(c.staff?.length || c.children?.length || c.staff_units?.length)) continue;
     addSection(pptx, { title: `${section.title} · ${c.name}`, subtitle: `${c.path || c.name}`, tree: c }, true);
   }
 }
