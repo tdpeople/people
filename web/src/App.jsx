@@ -38,11 +38,11 @@ function Shell() {
       <aside className={`side ${open ? 'open' : ''}`}>
         <div className="brand"><img src="/logo-light.svg" alt="Toscana Diagnostica" /><div className="app">Contracts · People</div></div>
         <nav>
-          {writer && <L to="/risorse/nuova" icon="plus">Inserimento nuova risorsa</L>}
-          <L to="/organigramma" icon="building">Organigramma</L>
           <L to="/" icon="home" end>Dashboard</L>
+          <L to="/organigramma" icon="building">Organigramma</L>
+          {writer && <L to="/risorse/nuova" icon="plus">Inserimento nuova risorsa</L>}
           <L to="/risorse" icon="users" end>Elenco delle risorse</L>
-          <L to="/scadenze" icon="calendar" count={soon}>Calendario scadenze</L>
+          <L to="/scadenze" icon="calendar" count={soon}>Calendario delle scadenze</L>
           <div className="group">Scouting</div>
           <L to="/scouting/cv" icon="inbox">CV Box</L>
           {writer && <L to="/scouting/lettere/nuova" icon="mail">Lettere di impegno</L>}
