@@ -20,6 +20,8 @@ export default function ResourceDetail() {
   const [tab, setTab] = useState('scheda');
   const [modal, setModal] = useState(null);
   const [preview, setPreview] = useState(null);
+  const [analyzingAll, setAnalyzingAll] = useState(false);
+  const [analysisReport, setAnalysisReport] = useState(null);
   const writer = canWrite(user);
   const costs = seesCosts(user);
   if (d.error) return <div className="page"><ErrorBox error={d.error} /></div>;
@@ -30,6 +32,23 @@ export default function ResourceDetail() {
 
   const generate = async (kind) => { try { const res = await api.post(`/resources/${id}/documents/generate`, { kind }); toast(`${DOC_LABEL[kind]} generato (v${res.version})${res.has_pdf ? ', PDF pronto' : ', solo DOCX'}${(res.missing || []).length ? ` · ${res.missing.length} segnaposto da completare` : ''}`); d.reload(); } catch (e2) { toast(e2.message, 'err'); } };
   const archive = async (doc) => { try { await api.post(`/documents/${doc.id}/archive`, { category: doc.kind === 'MBO' ? 'MBO' : doc.kind === 'LETTERA_IMPEGNO' ? 'LETTERA_IMPEGNO' : 'CONTRATTO_FIRMATO', signed: false }); toast('Archiviato nel dossier'); d.reload(); } catch (e2) { toast(e2.message, 'err'); } };
+  const analyzeAll = async () => {
+    setAnalyzingAll(true);
+    const acc = { analyzed: 0, updated: 0, report: [] };
+    try {
+      let after = 0, total = null;
+      for (;;) {
+        const r = await api.post(`/resources/${id}/attachments/analyze-all`, { only_missing: true, limit: 4, after });
+        acc.analyzed += r.analyzed; acc.updated += r.updated; acc.report.push(...r.report);
+        if (total === null) total = r.total;
+        setAnalyzingAll(`${acc.analyzed}/${total}`);
+        if (!r.remaining || !r.analyzed) break;
+        after = r.last_id;
+      }
+      setAnalysisReport(acc); d.reload();
+    } catch (e) { toast(e.message, 'err'); if (acc.analyzed) { setAnalysisReport(acc); d.reload(); } }
+    setAnalyzingAll(false);
+  };
   const setStatus = async (status) => { await api.put(`/resources/${id}`, { status, terminated_at: status === 'CESSATO' ? new Date().toISOString().slice(0, 10) : null }); d.reload(); };
 
   return (
@@ -148,7 +167,7 @@ export default function ResourceDetail() {
       </>)}
 
       {tab === 'dossier' && (
-        <Card title="Dossier online" actions={writer && <button className="btn" onClick={() => setModal('upload')}><Icon name="upload" />Carica allegato</button>} flush>
+        <Card title="Dossier online" actions={writer && <span className="row" style={{ gap: 8 }}><button className="btn ghost" disabled={!attachments.length || analyzingAll} onClick={analyzeAll} title="Legge tutti gli allegati e compila firmato, data di rilascio e scadenza dove mancano">{analyzingAll ? `Analisi in corso… ${typeof analyzingAll === 'string' ? analyzingAll : ''}` : 'Analizza i documenti'}</button><button className="btn" onClick={() => setModal('upload')}><Icon name="upload" />Carica allegato</button></span>} flush>
           {!attachments.length ? <Empty>Nessun allegato. Carica contratto firmato, documenti d'identità, titoli, iscrizioni e certificati.</Empty> : (
             <div className="table-wrap"><table className="t">
               <thead><tr><th>Categoria</th><th>File</th><th>Rilascio</th><th>Scadenza</th><th>Caricato</th><th className="num">Azioni</th></tr></thead>
@@ -221,6 +240,13 @@ export default function ResourceDetail() {
       {modal === 'lp' && <EditLp id={id} lp={lp} onClose={() => setModal(null)} onSaved={() => { setModal(null); d.reload(); }} />}
       {modal === 'upload' && <UploadModal id={id} cats={cats} onClose={() => setModal(null)} onSaved={() => { setModal(null); d.reload(); }} />}
       {modal?.editAtt && <EditAttachment id={id} a={modal.editAtt} cats={cats} onClose={() => setModal(null)} onSaved={() => { setModal(null); d.reload(); }} />}
+      {analysisReport && <Modal title="Analisi dei documenti del dossier" onClose={() => setAnalysisReport(null)} wide footer={<button className="btn" onClick={() => setAnalysisReport(null)}>Chiudi</button>}>
+        <p>{analysisReport.analyzed} document{analysisReport.analyzed === 1 ? 'o letto' : 'i letti'}, {analysisReport.updated} aggiornat{analysisReport.updated === 1 ? 'o' : 'i'}. Vengono compilati solo i campi vuoti: quello che avevi già inserito resta. Controlla le righe segnalate.</p>
+        {!analysisReport.analyzed && <p className="small muted">Tutti gli allegati hanno già firma, data di rilascio e scadenza compilate.</p>}
+        <table className="t"><thead><tr><th>Documento</th><th>Esito</th></tr></thead><tbody>
+          {analysisReport.report.map((x) => <tr key={x.id}><td><div className="strong">{x.filename}</div><div className="small muted">{CL?.[x.category] || x.category}</div></td><td className="small">{x.error ? <span style={{ color: '#b42318' }}>Errore: {x.error}</span> : x.skipped ? <span className="muted">Saltato: {x.skipped}</span> : <>{fmtRead(x.result)}{Object.keys(x.changes || {}).length ? <div className="muted">Compilati: {Object.keys(x.changes).map((k) => ({ issued_at: 'rilascio', expires_at: 'scadenza', signed: 'firmato', notes: 'note' })[k]).join(', ')}</div> : <div className="muted">Nessun campo da compilare</div>}{x.result?.mismatch && <div style={{ color: '#9a5b00' }}>Verifica: documento forse non coerente con la categoria o con la persona</div>}</>}</td></tr>)}
+        </tbody></table>
+      </Modal>}
       {modal?.delAtt && <ConfirmModal danger title="Elimina allegato" text={`Eliminare "${modal.delAtt.filename}" dal dossier? L'operazione è definitiva.`} confirmText="Elimina" onClose={() => setModal(null)} onConfirm={async () => { await api.del(`/resources/${id}/attachments/${modal.delAtt.id}`); d.reload(); }} />}
       {modal?.delDoc && <ConfirmModal danger title="Elimina documento generato" text={`Eliminare "${modal.delDoc.title}" v${modal.delDoc.version}?`} confirmText="Elimina" onClose={() => setModal(null)} onConfirm={async () => { await api.del(`/documents/${modal.delDoc.id}`); d.reload(); }} />}
       {modal === 'deadline' && <DeadlineModal id={id} onClose={() => setModal(null)} onSaved={() => { setModal(null); d.reload(); }} />}

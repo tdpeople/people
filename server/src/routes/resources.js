@@ -447,6 +447,39 @@ r.post('/:id/attachments/analyze', requireWrite, upload.single('file'), ah(async
   } catch (e) { throw new HttpError(e.status || 424, e.message); }
 }));
 
+/** Analisi massiva del dossier: legge tutti gli allegati (o solo quelli con campi vuoti) e compila firmato, rilascio e scadenza. */
+r.post('/:id/attachments/analyze-all', requireWrite, ah(async (req, res) => {
+  const id = Number(req.params.id);
+  if (!await one('SELECT 1 FROM resources WHERE id=$1', [id])) throw notFound();
+  const onlyMissing = req.body?.only_missing !== false;
+  const limit = Math.min(10, Math.max(1, Number(req.body?.limit) || 4));
+  const after = Number(req.body?.after) || 0; // a lotti: il client richiama passando l'ultimo id elaborato
+  const all = await many(`SELECT id, category, filename, mime, size, issued_at, expires_at, signed, notes FROM attachments WHERE resource_id=$1 ${onlyMissing ? "AND (issued_at IS NULL OR expires_at IS NULL OR signed = FALSE)" : ''} AND id > $2 ORDER BY id`, [id, after]);
+  const rows = all.slice(0, limit);
+  const report = []; let updated = 0;
+  for (const a of rows) {
+    if (!/pdf|image|wordprocessingml|text\/plain/i.test(a.mime || '') && !/\.(pdf|docx|txt|png|jpe?g|webp)$/i.test(a.filename || '')) { report.push({ id: a.id, filename: a.filename, category: a.category, skipped: 'formato non leggibile' }); continue; }
+    const ctx = await analysisContext(id, a.category);
+    const full = await one('SELECT data FROM attachments WHERE id=$1', [a.id]);
+    try {
+      const r = await analyzeAttachment({ buffer: full.data, mime: a.mime, filename: a.filename, category: a.category, ...ctx });
+      const changes = {};
+      if (r.weak) { report.push({ id: a.id, filename: a.filename, category: a.category, result: r, changes, skipped: 'nessuna data riconoscibile con certezza (senza API Claude): da compilare a mano' }); continue; }
+      if (!a.issued_at && r.issued_at) changes.issued_at = r.issued_at;
+      if (!a.expires_at && r.expires_at) changes.expires_at = r.expires_at;
+      if (!a.signed && r.signed === true) changes.signed = true;
+      if (!a.notes && r.notes) changes.notes = `Lettura automatica: ${r.notes}`.slice(0, 500);
+      const cols = Object.keys(changes);
+      if (cols.length) { await q(`UPDATE attachments SET ${cols.map((c, i) => `${c}=$${i + 2}`).join(', ')} WHERE id=$1`, [a.id, ...cols.map((c) => changes[c])]); updated++; }
+      report.push({ id: a.id, filename: a.filename, category: a.category, result: r, changes });
+    } catch (e) {
+      report.push({ id: a.id, filename: a.filename, category: a.category, error: e.message });
+    }
+  }
+  if (rows.length) await audit(req, 'ATTACHMENTS_ANALYZE_ALL', 'resource', id, { analyzed: rows.length, updated });
+  res.json({ analyzed: rows.length, updated, report, remaining: all.length - rows.length, last_id: rows.length ? rows[rows.length - 1].id : after, total: all.length });
+}));
+
 /** Rilegge un allegato già nel dossier; con apply=1 compila i campi vuoti. */
 r.post('/:id/attachments/:aid/analyze', requireWrite, ah(async (req, res) => {
   const id = Number(req.params.id), aid = Number(req.params.aid);
@@ -455,7 +488,7 @@ r.post('/:id/attachments/:aid/analyze', requireWrite, ah(async (req, res) => {
   const ctx = await analysisContext(id, a.category);
   let r;
   try { r = await analyzeAttachment({ buffer: a.data, mime: a.mime, filename: a.filename, category: a.category, ...ctx }); } catch (e) { throw new HttpError(e.status || 424, e.message); }
-  if (req.body?.apply) {
+  if (req.body?.apply && !r.weak) {
     await q(`UPDATE attachments SET issued_at=coalesce(issued_at,$2), expires_at=coalesce(expires_at,$3), signed=CASE WHEN signed THEN TRUE ELSE coalesce($4, signed) END,
       notes=CASE WHEN coalesce(notes,'')='' THEN $5 ELSE notes END WHERE id=$1`, [aid, r.issued_at, r.expires_at, r.signed, r.notes ? `Lettura automatica: ${r.notes}`.slice(0, 500) : null]);
     await audit(req, 'ATTACHMENT_ANALYZE', 'attachment', aid, { method: r.method, issued_at: r.issued_at, expires_at: r.expires_at, signed: r.signed });
@@ -475,11 +508,12 @@ r.post('/:id/attachments', requireWrite, upload.single('file'), ah(async (req, r
     try {
       const ctx = await analysisContext(id, d.category);
       auto = await analyzeAttachment({ buffer: req.file.buffer, mime: req.file.mimetype, filename, category: d.category, ...ctx });
+      if (auto.weak) throw Object.assign(new Error('nessuna data riconoscibile con certezza'), { weak: true });
       if (!d.issued_at && auto.issued_at) d.issued_at = auto.issued_at;
       if (!d.expires_at && auto.expires_at) d.expires_at = auto.expires_at;
       if (!d.signed && auto.signed === true) d.signed = true;
       if (!d.notes && auto.notes) d.notes = `Lettura automatica: ${auto.notes}`.slice(0, 500);
-    } catch (e) { console.error('[doc] lettura automatica non riuscita:', e.message); auto = { error: e.message }; }
+    } catch (e) { if (!e.weak) console.error('[doc] lettura automatica non riuscita:', e.message); auto = { error: e.message }; }
   }
   const row = await one(`INSERT INTO attachments (resource_id, category, filename, mime, size, data, sha256, issued_at, expires_at, signed, notes, uploaded_by)
     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`, [id, d.category, filename, req.file.mimetype, req.file.size, req.file.buffer, sha, d.issued_at, d.expires_at, d.signed, d.notes, req.user.id]);

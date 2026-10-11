@@ -109,19 +109,24 @@ async function extractAnyTextWithImages(buffer, mime, filename) {
   return (await extractAnyText(buffer, mime, filename)).text || '';
 }
 
-/** Euristica senza API: date vicine a parole chiave; scadenza da periodicità della categoria. */
+/** Euristica senza API: date vicine a parole chiave; scadenza da periodicità della categoria. Senza parole chiave la proposta è "debole" e non viene applicata in automatico. */
 function heuristic(text, { renewMonths }) {
   const t = (text || '').replace(/\s+/g, ' ');
-  const dateRe = /(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4})/g;
+  const today = new Date().toISOString().slice(0, 10);
+  const D = '(\\d{1,2}[\\/.\\-]\\d{1,2}[\\/.\\-]\\d{4})';
   const find = (re) => { const m = t.match(re); return m ? ymd(m[1]) : null; };
-  const issued = find(/(?:rilasciat[ao]\s+(?:il|in\s+data)|data\s+di\s+rilascio|emess[ao]\s+il|data\s+(?:di\s+)?emissione|in\s+data|data\s+del\s+documento|del\s+giorno|data:?)\s*[:\-]?\s*(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{4})/i)
-    || find(/(?:firenze|sesto fiorentino|prato|pistoia|livorno)[^\d]{0,12}(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{4})/i);
-  const expires = find(/(?:scad(?:enza|e)|valid[ao]\s+(?:fino\s+al|sino\s+al|al)|validit[àa]\s+(?:fino\s+al)?|data\s+di\s+scadenza|expir(?:y|es))\s*[:\-]?\s*(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{4})/i);
-  const all = [...t.matchAll(dateRe)].map((m) => ymd(m[0])).filter(Boolean).sort();
-  const issued_at = issued || all[0] || null;
-  const expires_at = expires || (issued_at && renewMonths ? addMonths(issued_at, renewMonths) : (all.length > 1 && all[all.length - 1] > new Date().toISOString().slice(0, 10) ? all[all.length - 1] : null));
+  const issued = find(new RegExp(`(?:rilasciat[ao]\\s+(?:il|in\\s+data)|data\\s+di\\s+rilascio|emess[ao]\\s+(?:il|in\\s+data)|data\\s+(?:di\\s+)?emissione|data\\s+del\\s+documento|sottoscritt[oa]\\s+(?:il|in\\s+data)|firmat[oa]\\s+(?:il|in\\s+data)|in\\s+data|data\\s+(?:della\\s+)?(?:visita|attestato|certificato|comunicazione|lettera))\\s*[:\\-]?\\s*${D}`, 'i'))
+    || find(new RegExp(`(?:firenze|sesto fiorentino|prato|pistoia|livorno|roma|milano|calenzano|montemurlo|quarrata)\\s*,?\\s*(?:l[ìi]|il|addì)?\\s*${D}`, 'i'));
+  const expires = find(new RegExp(`(?:scad(?:enza|e|ente)|valid[ao]\\s+(?:fino\\s+al|sino\\s+al|al)|validit[àa]\\s*(?:fino\\s+al)?|data\\s+di\\s+scadenza|expir(?:y|es)|fino\\s+al)\\s*[:\\-]?\\s*${D}`, 'i'));
+  // date in contesto anagrafico (nascita) non sono mai date del documento
+  const birthCtx = new Set([...t.matchAll(new RegExp(`(?:nat[oa]\\s+(?:a|il|in)[^\\d]{0,40}|nascita[^\\d]{0,20}|birth[^\\d]{0,20})${D}`, 'gi'))].map((m) => ymd(m[1])));
+  const all = [...t.matchAll(new RegExp(D, 'g'))].map((m) => ymd(m[1])).filter((d) => d && !birthCtx.has(d) && d >= '1995-01-01').sort();
+  const past = all.filter((d) => d <= today), future = all.filter((d) => d > today);
+  const weak = !issued && !expires;
+  const issued_at = issued || (past.length ? past[past.length - 1] : null); // senza parola chiave: l'ultima data passata (i documenti si datano in chiusura)
+  const expires_at = expires || (issued_at && renewMonths ? addMonths(issued_at, renewMonths) : (future.length ? future[0] : null));
   const signed = /firmato\s+digitalmente|firma\s+digitale|sottoscritt[oa]\s+digitalmente/i.test(t) ? true : null;
-  return { signed, issued_at, expires_at, doc_type: null, holder: null, mismatch: false, confidence: issued || expires ? 0.5 : 0.25, notes: all.length ? `Date trovate nel testo: ${[...new Set(all)].map((d) => d.split('-').reverse().join('/')).join(', ')}` : 'Nessuna data leggibile nel documento', method: 'euristica' };
+  return { signed, issued_at, expires_at, doc_type: null, holder: null, mismatch: false, confidence: weak ? 0.25 : 0.55, weak, notes: all.length ? `Date trovate nel testo: ${[...new Set(all)].map((d) => d.split('-').reverse().join('/')).join(', ')}` : 'Nessuna data leggibile nel documento', method: 'euristica' };
 }
 
 export async function analyzeAttachment({ buffer, mime, filename, category, label, renewMonths, personName }) {
