@@ -30,7 +30,7 @@ export async function summarizeCv(text, areas) {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-api-key': config.anthropicKey, 'anthropic-version': '2023-06-01' },
-    body: JSON.stringify({ model: config.anthropicModel, max_tokens: 900, messages: [{ role: 'user', content: prompt }] }),
+    body: JSON.stringify({ model: config.anthropicModel, max_tokens: 2000, system: 'Rispondi esclusivamente con un oggetto JSON valido, senza testo prima o dopo e senza blocchi di codice.', messages: [{ role: 'user', content: prompt }] }),
   });
   if (!res.ok) {
     const body = await res.text();
@@ -43,8 +43,29 @@ export async function summarizeCv(text, areas) {
     err.status = 424; throw err;
   }
   const data = await res.json();
-  const txt = (data.content || []).map((c) => c.text || '').join('');
-  const m = txt.match(/\{[\s\S]*\}/);
-  if (!m) return null;
-  try { return JSON.parse(m[0]); } catch { return null; }
+  const txt = (data.content || []).filter((c) => c.type === 'text').map((c) => c.text || '').join('').trim();
+  const parsed = parseJsonObject(txt);
+  if (!parsed) {
+    console.error('[cv] risposta non interpretabile:', txt.slice(0, 500), '| stop_reason:', data.stop_reason);
+    const e = new Error(`Il modello non ha restituito una sintesi leggibile (stop: ${data.stop_reason || 'n.d.'}). Inizio della risposta: ${txt.slice(0, 160) || '(vuota)'}`);
+    e.status = 424; throw e;
+  }
+  return parsed;
+}
+
+/** Estrae il primo oggetto JSON bilanciato dal testo (anche dentro ```json ... ```). */
+function parseJsonObject(txt) {
+  const cleaned = txt.replace(/```(?:json)?/gi, '').trim();
+  try { return JSON.parse(cleaned); } catch { /* prosegue */ }
+  const start = cleaned.indexOf('{');
+  if (start < 0) return null;
+  let depth = 0, inStr = false, esc = false;
+  for (let i = start; i < cleaned.length; i++) {
+    const ch = cleaned[i];
+    if (inStr) { if (esc) esc = false; else if (ch === '\\') esc = true; else if (ch === '"') inStr = false; continue; }
+    if (ch === '"') inStr = true;
+    else if (ch === '{') depth++;
+    else if (ch === '}') { depth--; if (depth === 0) { try { return JSON.parse(cleaned.slice(start, i + 1)); } catch { return null; } } }
+  }
+  return null;
 }

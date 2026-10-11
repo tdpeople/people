@@ -69,7 +69,7 @@ r.post('/cv/:id/analyze', requireWrite, ah(async (req, res) => {
   const text = c.data ? await extractText(c.data, c.mime, c.filename || '') : c.text_excerpt;
   let ai;
   try { ai = await summarizeCv(text, (await many('SELECT name FROM areas WHERE active ORDER BY sort_order')).map((a) => a.name)); } catch (e) { throw new HttpError(e.status || 424, e.message); }
-  if (!ai) throw bad('Il modello non ha restituito una sintesi leggibile: riprova');
+  if (!ai) throw bad('Il modello non ha restituito una sintesi: riprova');
   const areaId = ai.area ? (await one('SELECT id FROM areas WHERE lower(name)=lower($1)', [ai.area]))?.id || null : null;
   await q(`UPDATE cv_box SET summary=coalesce($2, summary), role_target=coalesce($3, role_target), rating=coalesce($4, rating), area_id=coalesce($5, area_id),
     last_name=coalesce(last_name,$6), first_name=coalesce(first_name,$7), email=coalesce(email,$8), phone=coalesce(phone,$9), updated_at=now() WHERE id=$1`,
