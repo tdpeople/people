@@ -134,10 +134,12 @@ export function commitmentData({ resource: r, letter: l, settings: S }) {
 }
 
 const FEE_UNIT = { FISSO: '/mese', ORARIO: '/ora', PRESTAZIONE: '/cad', VARIABILE: '' };
+const VAT_LABEL = { CON: ' oltre IVA', SENZA: ' IVA non applicata' };
 export function feeLabel(f) {
-  if (f.type === 'VARIABILE') return `${String(Number(f.amount || 0)).replace('.', ',')}%`;
+  const vat = VAT_LABEL[f.vat] || '';
+  if (f.type === 'VARIABILE') return `${String(Number(f.amount || 0)).replace('.', ',')}%${vat}`;
   const unit = f.unit ? `/${f.unit}` : (FEE_UNIT[f.type] || '');
-  return `€ ${eurIt(f.amount)}${unit}`;
+  return `€ ${eurIt(f.amount)}${unit}${vat}`;
 }
 
 export function lpData({ resource: r, lp, settings: S, letterDate }) {

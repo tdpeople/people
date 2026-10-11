@@ -103,7 +103,7 @@ export const lpSchema = z.object({
   end_date: optDate(),
   auto_renew: z.boolean().default(true),
   notice_days: num().default(30),
-  fees: z.array(z.object({ type: z.enum(['FISSO', 'ORARIO', 'PRESTAZIONE', 'VARIABILE']), code: opt(z.string().max(20)), description: z.string().max(300), category: opt(z.string().max(100)), amount: num(), unit: opt(z.string().max(20)), notes: opt(z.string().max(300)) })).default([]),
+  fees: z.array(z.object({ type: z.enum(['FISSO', 'ORARIO', 'PRESTAZIONE', 'VARIABILE']), code: opt(z.string().max(20)), description: z.string().max(300), category: opt(z.string().max(100)), amount: num(), unit: opt(z.string().max(20)), vat: opt(z.enum(['CON', 'SENZA'])), notes: opt(z.string().max(300)) })).default([]),
   est_monthly_cost: num(),
   vat_regime: opt(z.string().max(60)),
   letter_date: optDate(),
@@ -287,7 +287,8 @@ r.get('/:id', ah(async (req, res) => {
     payroll = { minimum: m, decomposition: decompose(employment.ral, employment.monthly_payments, employment.base_pay ?? m?.amount ?? null, Number(S.function_allowance_share || 0.7)) };
   }
   if (req.user.role === 'VIEWER' && employment) { for (const k of ['ral', 'base_pay', 'superminimo', 'function_allowance', 'ral_steps', 'mbo_pct']) delete employment[k]; }
-  const org_units = await many(`SELECT u.id, u.name, u.role_title, u.kind FROM org_units u WHERE u.resource_id=$1 OR (u.resource_id IS NULL AND lower(coalesce(u.head_name,''))=lower($2)) ORDER BY u.sort_order`, [id, `${row.first_name} ${row.last_name}`]);
+  // Aree di cui la persona è referente (Impostazioni > Modifica area): è il dato che alimenta l'organigramma
+  const org_units = await many(`SELECT t.id, t.name, t.path, a.kind, t.level FROM areas a JOIN areas_tree t ON t.id=a.id WHERE a.head_resource_id=$1 ORDER BY t.sort_path`, [id]);
   res.json({ resource: res_, employment, lp, letters, documents, attachments, deadlines, checklist, payroll, org_units, category_labels: CATEGORY_LABELS });
 }));
 

@@ -32,6 +32,7 @@ export const LETTER_STATUS = { BOZZA: { label: 'Bozza', tone: 'grey' }, INVIATA:
 export const CV_STATUS = { NUOVO: { label: 'Nuovo', tone: 'blue' }, IN_VALUTAZIONE: { label: 'In valutazione', tone: 'mauve' }, COLLOQUIO: { label: 'Colloquio', tone: 'teal' }, IN_ATTESA: { label: 'In attesa', tone: 'grey' }, SCARTATO: { label: 'Scartato', tone: 'red' }, CONVERTITO: { label: 'Convertito', tone: 'green' } };
 export const DEADLINE_STATE = { SCADUTA: 'red', IMMINENTE: 'mauve', PROSSIMA: 'blue', PIANIFICATA: 'grey' };
 export const FEE_TYPE = { FISSO: 'Fisso mensile', ORARIO: 'A ore', PRESTAZIONE: 'A prestazione', VARIABILE: '% sul fatturato' };
+export const FEE_VAT = { CON: 'Con IVA', SENZA: 'Senza IVA' };
 export const SEX = { F: 'Donna', M: 'Uomo' };
 
 export const TERMINATION_LABEL = { DIMISSIONI: 'Dimissioni', LICENZIAMENTO: 'Licenziamento', SCADENZA_TERMINE: 'Scadenza del termine', RISOLUZIONE_CONSENSUALE: 'Risoluzione consensuale', PENSIONAMENTO: 'Pensionamento', FINE_INCARICO: 'Fine incarico professionale', RECESSO: 'Recesso dall\'incarico', ALTRO: 'Altro' };

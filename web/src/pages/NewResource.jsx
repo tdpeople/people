@@ -131,7 +131,7 @@ export default function NewResource({ letterMode = false }) {
   const missingList = (() => {
     const m = [];
     if (!person.birth_place) m.push('luogo di nascita'); if (!person.birth_date) m.push('data di nascita'); if (!person.tax_code) m.push('codice fiscale'); if (!person.address || !person.city) m.push('indirizzo di residenza');
-    if (isLp) { if (!lp.discipline) m.push('disciplina'); if (!person.vat_number) m.push('partita IVA'); if (!lp.order_name) m.push('ordine'); if (!lp.order_number) m.push('numero di iscrizione'); if (!lp.start_date) m.push('data di inizio'); if (!(lp.fees || []).some((f) => f.description)) m.push('compensi'); }
+    if (isLp) { if (!lp.discipline) m.push('disciplina'); if (!person.vat_number) m.push('partita IVA'); if (!lp.order_name) m.push('ordine'); if (!lp.order_number) m.push('numero di iscrizione'); if (!lp.start_date) m.push('data di inizio'); if (!(lp.fees || []).some((f) => f.description)) m.push('compensi'); if ((lp.fees || []).some((f) => f.description && !f.vat)) m.push('IVA sui compensi (con / senza)'); }
     else if (path === 'LETTERA') { if (!letter.job_title) m.push('mansione'); if (!letter.level) m.push('livello'); if (!letter.ral) m.push('RAL'); if (!letter.start_by) m.push('decorrenza massima'); }
     else { if (!emp.job_title) m.push('mansione'); if (!emp.level && emp.contract_type !== 'DIRIGENTE') m.push('livello'); if (!emp.ral) m.push('RAL'); if (!emp.start_date) m.push('data di assunzione'); if (!emp.probation) m.push('periodo di prova'); }
     return m;

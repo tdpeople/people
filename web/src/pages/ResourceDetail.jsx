@@ -4,7 +4,7 @@ import { api } from '../api.js';
 import { useAuth, canWrite, isAdmin, seesCosts } from '../auth.jsx';
 import { useApi, Card, Field, ErrorBox, Loading, Empty, Badge, KindBadge, StatusBadge, Modal, PromptModal, ConfirmModal, useToast, Icon } from '../components/ui.jsx';
 import { PersonForm, EmploymentForm, LpForm } from '../components/forms.jsx';
-import { eur, itDate, itDateTime, bytes, age, CONTRACT, LEVEL_LABEL, LETTER_STATUS, DEADLINE_STATE, FEE_TYPE, SEX, TERMINATION_LABEL, today } from '../format.js';
+import { eur, itDate, itDateTime, bytes, age, CONTRACT, LEVEL_LABEL, LETTER_STATUS, DEADLINE_STATE, FEE_TYPE, FEE_VAT, SEX, TERMINATION_LABEL, today } from '../format.js';
 
 const DOC_LABEL = { CONTRATTO: 'Lettera di assunzione', MBO: 'Piano MBO', LETTERA_IMPEGNO: 'Lettera di impegno', CONTRATTO_LP: 'Contratto LP' };
 
@@ -85,7 +85,7 @@ export default function ResourceDetail() {
             <Row k="Area" v={r.area_path || r.area_name} />{(r.extra_areas || []).length > 0 && <Row k="Altre funzioni" v={r.extra_areas.map((x) => x.path).join(" | ")} />}
             <Row k="Riporta a" v={r.manager_id ? <Link to={`/risorse/${r.manager_id}`}>{r.manager_name}</Link> : null} />
             <Row k="Approva ferie e permessi" v={r.approver_id ? <Link to={`/risorse/${r.approver_id}`}>{r.approver_name}</Link> : r.manager_id ? <span>{r.manager_name} <span className="small muted">(responsabile)</span></span> : null} />
-            {(d.data.org_units || []).length > 0 && <Row k="Nell'organigramma" v={<Link to="/organigramma">{d.data.org_units.map((u) => `${u.role_title || 'Responsabile'} · ${u.name}`).join('; ')}</Link>} />}
+            {(d.data.org_units || []).length > 0 && <Row k="Referente di" v={<Link to="/organigramma">{d.data.org_units.map((u) => u.path).join('; ')}</Link>} />}
             <Row k="Ingresso" v={itDate(r.hired_at)} />
             <Row k="Cessazione" v={r.terminated_at ? `${r.status === 'CESSATO' ? 'dal' : 'programmata dal'} ${itDate(r.terminated_at)}${r.termination_reason ? ` · ${TERMINATION_LABEL[r.termination_reason] || r.termination_reason}` : ''}${r.termination_notes ? ` · ${r.termination_notes}` : ''}` : null} />
             {r.cv_attachment_id && <Row k="CV" v={<a href={`/api/resources/${id}/attachments/${r.cv_attachment_id}/download?inline=1`} target="_blank" rel="noreferrer">Apri CV</a>} />}
@@ -126,7 +126,7 @@ export default function ResourceDetail() {
                 <Row k="Titoli" v={(lp.degrees || []).join(' · ')} />
                 <Row k="Regime IVA" v={lp.vat_regime} />
                 <div className="subhead">Tariffario</div>
-                <table className="t"><thead><tr><th>Tipo</th><th>Descrizione</th><th className="num">Importo</th></tr></thead><tbody>{(lp.fees || []).map((f, i) => <tr key={i}><td><Badge>{FEE_TYPE[f.type]}</Badge></td><td>{f.description}<div className="small muted">{f.category}{f.notes ? ` · ${f.notes}` : ''}</div></td><td className="num">{f.type === 'VARIABILE' ? `${f.amount}%` : `${eur(f.amount)}${f.unit ? `/${f.unit}` : ''}`}</td></tr>)}</tbody></table>
+                <table className="t"><thead><tr><th>Tipo</th><th>Descrizione</th><th className="num">Importo</th><th>IVA</th></tr></thead><tbody>{(lp.fees || []).map((f, i) => <tr key={i}><td><Badge>{FEE_TYPE[f.type]}</Badge></td><td>{f.description}<div className="small muted">{f.category}{f.notes ? ` · ${f.notes}` : ''}</div></td><td className="num">{f.type === 'VARIABILE' ? `${f.amount}%` : `${eur(f.amount)}${f.unit ? `/${f.unit}` : ''}`}</td><td>{f.vat ? <Badge tone={f.vat === 'CON' ? 'blue' : 'grey'}>{FEE_VAT[f.vat]}</Badge> : <Badge tone="red">da definire</Badge>}</td></tr>)}</tbody></table>
                 {lp.notes && <p className="small muted" style={{ marginTop: 10, whiteSpace: 'pre-wrap' }}>{lp.notes}</p>}
               </>}
             </Card>
@@ -295,7 +295,7 @@ function EditLp({ id, lp, onClose, onSaved }) {
     setErr(null);
     const body = { ...v }; delete body.resource_id; delete body.updated_at;
     for (const k of Object.keys(body)) if (body[k] === '') body[k] = null;
-    body.fees = (body.fees || []).filter((f) => f.description); body.degrees = (body.degrees || []).filter(Boolean); body.activities = (body.activities || []).filter(Boolean);
+    body.fees = (body.fees || []).filter((f) => f.description); if (body.fees.some((f) => !f.vat)) { setErr(new Error('Indica per ogni compenso se è con o senza IVA')); return; } body.degrees = (body.degrees || []).filter(Boolean); body.activities = (body.activities || []).filter(Boolean);
     try { await api.put(`/resources/${id}/lp`, body); onSaved(); } catch (e2) { setErr(e2); }
   };
   return <Modal title="Incarico professionale" onClose={onClose} wide footer={<><button className="btn ghost" onClick={onClose}>Annulla</button><button className="btn" onClick={save}>Salva</button></>}><ErrorBox error={err} /><LpForm value={v} onChange={setV} /><div className="form-grid" style={{ marginTop: 12 }}><Field label="Data del contratto"><input type="date" value={v.letter_date || ''} onChange={(ev) => setV({ ...v, letter_date: ev.target.value })} /></Field></div></Modal>;

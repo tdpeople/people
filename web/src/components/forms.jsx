@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Field, MoneyInput, useApi, Icon } from './ui.jsx';
-import { LEVELS, LEVEL_LABEL, CONTRACT, FEE_TYPE, eur } from '../format.js';
+import { LEVELS, LEVEL_LABEL, CONTRACT, FEE_TYPE, FEE_VAT, eur } from '../format.js';
 import { api } from '../api.js';
 
 const set = (v, onChange) => (k, x) => onChange({ ...v, [k]: x });
@@ -223,7 +223,7 @@ export function FeesEditor({ value = [], onChange }) {
   return (
     <div>
       <div className="table-wrap"><table className="t">
-        <thead><tr><th>Tipo</th><th>Descrizione / attività</th><th>Categoria</th><th className="num">Importo</th><th>Unità</th><th>Note</th><th /></tr></thead>
+        <thead><tr><th>Tipo</th><th>Descrizione / attività</th><th>Categoria</th><th className="num">Importo</th><th>Unità</th><th>IVA *</th><th>Note</th><th /></tr></thead>
         <tbody>{value.map((r, i) => (
           <tr key={i}>
             <td><select value={r.type} onChange={(e) => onChange(value.map((x, j) => (j === i ? { ...x, type: e.target.value, unit: unitFor(e.target.value) } : x)))} style={{ minWidth: 130 }}>{Object.entries(FEE_TYPE).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></td>
@@ -231,15 +231,17 @@ export function FeesEditor({ value = [], onChange }) {
             <td><input value={r.category || ''} onChange={(e) => upd(i, 'category', e.target.value)} style={{ minWidth: 140 }} /></td>
             <td><MoneyInput value={r.amount ?? ''} onChange={(x) => upd(i, 'amount', x)} style={{ width: 110 }} /></td>
             <td><input value={r.unit || ''} onChange={(e) => upd(i, 'unit', e.target.value)} style={{ width: 70 }} placeholder={unitFor(r.type)} /></td>
+            <td><select value={r.vat || ''} onChange={(e) => upd(i, 'vat', e.target.value || null)} style={{ minWidth: 110, borderColor: r.vat ? undefined : 'var(--danger, #b42318)' }}><option value="">– scegli –</option>{Object.entries(FEE_VAT).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></td>
             <td><input value={r.notes || ''} onChange={(e) => upd(i, 'notes', e.target.value)} /></td>
             <td><button type="button" className="iconbtn" onClick={() => onChange(value.filter((_, j) => j !== i))}><Icon name="trash" /></button></td>
           </tr>))}</tbody>
       </table></div>
+      {value.some((r) => !r.vat) && <div className="small" style={{ color: 'var(--danger, #b42318)', marginTop: 6 }}>Indica per ogni compenso se è con o senza IVA.</div>}
       <div className="row" style={{ marginTop: 8 }}>
-        <button type="button" className="btn sm ghost" onClick={() => onChange([...value, { type: 'FISSO', description: '', category: '', amount: '', unit: 'mese', notes: '' }])}>+ Compenso fisso</button>
-        <button type="button" className="btn sm ghost" onClick={() => onChange([...value, { type: 'ORARIO', description: '', category: '', amount: '', unit: 'ora', notes: '' }])}>+ A ore</button>
-        <button type="button" className="btn sm ghost" onClick={() => onChange([...value, { type: 'PRESTAZIONE', description: '', category: '', amount: '', unit: 'cad', notes: '' }])}>+ A prestazione</button>
-        <button type="button" className="btn sm ghost" onClick={() => onChange([...value, { type: 'VARIABILE', description: '', category: '', amount: '', unit: '%', notes: 'del fatturato' }])}>+ Variabile sul fatturato</button>
+        <button type="button" className="btn sm ghost" onClick={() => onChange([...value, { type: 'FISSO', description: '', category: '', amount: '', unit: 'mese', vat: null, notes: '' }])}>+ Compenso fisso</button>
+        <button type="button" className="btn sm ghost" onClick={() => onChange([...value, { type: 'ORARIO', description: '', category: '', amount: '', unit: 'ora', vat: null, notes: '' }])}>+ A ore</button>
+        <button type="button" className="btn sm ghost" onClick={() => onChange([...value, { type: 'PRESTAZIONE', description: '', category: '', amount: '', unit: 'cad', vat: null, notes: '' }])}>+ A prestazione</button>
+        <button type="button" className="btn sm ghost" onClick={() => onChange([...value, { type: 'VARIABILE', description: '', category: '', amount: '', unit: '%', vat: null, notes: 'del fatturato' }])}>+ Variabile sul fatturato</button>
       </div>
     </div>
   );

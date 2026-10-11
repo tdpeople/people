@@ -43,8 +43,13 @@ const LP_COLS = [
   { key: 'role_description', label: 'Oggetto della prestazione', target: 'lp', width: 36, example: 'Refertazione esami istologici' },
   { key: 'start_date', label: 'Inizio contratto *', req: true, target: 'lp', width: 14, example: '2026-09-01', date: true },
   { key: 'end_date', label: 'Fine contratto', target: 'lp', width: 14, example: '2027-08-31', date: true },
-  { key: 'fee_monthly', label: 'Compenso mensile fisso (importo)', target: 'fee', width: 18, example: 3000, num: true },
-  { key: 'fee_hourly', label: 'Compenso orario (importo)', target: 'fee', width: 16, example: '', num: true },
+  { key: 'fee_monthly', label: 'Compenso fisso mensile (importo)', target: 'fee', width: 18, example: 3000, num: true, fee: { type: 'FISSO', description: 'Compenso fisso mensile', unit: 'mese' } },
+  { key: 'fee_service', label: 'Compenso a prestazione (importo per prestazione)', target: 'fee', width: 20, example: '', num: true, fee: { type: 'PRESTAZIONE', description: 'Compenso a prestazione', unit: 'cad' } },
+  { key: 'fee_service_desc', label: 'Prestazione (descrizione del compenso a prestazione)', target: 'feedesc', width: 30, example: '' },
+  { key: 'fee_hourly', label: 'Compenso a ore (importo orario)', target: 'fee', width: 16, example: '', num: true, fee: { type: 'ORARIO', description: 'Compenso orario', unit: 'ora' } },
+  { key: 'fee_variable', label: 'Compenso variabile sul fatturato (%)', target: 'fee', width: 18, example: '', num: true, fee: { type: 'VARIABILE', description: 'Compenso variabile sul fatturato', unit: '%', notes: 'del fatturato' } },
+  { key: 'fee_vat', label: 'IVA sui compensi * (Con IVA / Senza IVA)', req: true, target: 'vat', width: 18, example: 'Senza IVA' },
+  { key: 'vat_regime', label: 'Regime IVA / cassa (es. esente art. 10; cassa 4%)', target: 'lp', width: 24, example: 'esente art. 10' },
   { key: 'order_name', label: 'Albo / Ordine', target: 'lp', width: 22, example: 'Ordine dei Medici' },
   { key: 'order_province', label: 'Provincia albo', target: 'lp', width: 12, example: 'FI' },
   { key: 'order_number', label: 'Numero iscrizione', target: 'lp', width: 14, example: '12345' },
@@ -76,7 +81,8 @@ export async function buildTemplate(kind) {
     'Compilare una riga per persona nel primo foglio. La riga 2 è un esempio: sostituirla o cancellarla.',
     'Le colonne con asterisco e intestazione scura sono obbligatorie: se manca un valore il file viene rifiutato per intero e nessuna riga viene caricata.',
     'Date nel formato AAAA-MM-GG (es. 2026-09-01) oppure come data Excel. Importi senza simbolo di valuta (es. 28000).',
-    kind === 'LP' ? 'Disciplina e inizio contratto sono obbligatori; indicare il compenso mensile fisso oppure quello orario.' : 'Tipo contratto, mansione, RAL e data di ingresso sono obbligatori; il livello CCNL è obbligatorio tranne che per i dirigenti.',
+    kind === 'LP' ? 'Disciplina e inizio contratto sono obbligatori. Compensi: compilare una o più colonne tra fisso mensile (importo al mese), a prestazione (importo per singola prestazione, con la descrizione della prestazione nella colonna accanto), a ore (importo orario) e variabile sul fatturato (percentuale, es. 10). Almeno un compenso è obbligatorio.' : 'Tipo contratto, mansione, RAL e data di ingresso sono obbligatori; il livello CCNL è obbligatorio tranne che per i dirigenti.',
+    ...(kind === 'LP' ? ['IVA sui compensi (obbligatorio): "Con IVA" se i compensi sono assoggettati a IVA, "Senza IVA" se non lo sono (es. prestazioni sanitarie esenti art. 10 DPR 633/72, regime forfettario). Il dettaglio del regime va nella colonna "Regime IVA / cassa". Il valore si applica a tutte le voci di compenso della riga; voci con trattamento IVA diverso si correggono poi nella scheda.'] : []),
     'Area: denominazione esatta di un\'area presente in Impostazioni. Riporta a: "Cognome Nome" di una risorsa già censita.',
     'Il codice fiscale identifica la persona: se esiste già, la riga aggiorna anagrafica e contratto invece di creare un duplicato.',
   ].forEach((t, i) => { const row = info.addRow([t]); if (i === 0) row.font = { bold: true, size: 13, color: { argb: 'FF1B505F' } }; row.alignment = { wrapText: true }; });
@@ -124,7 +130,7 @@ export async function readBulk(buffer, kind) {
     const err = (m) => errors.push(`Riga ${n}: ${m}`);
     for (const c of cols) if (c.req && !vals[c.key] && !(kind !== 'LP' && c.key === 'level')) err(`manca "${c.label.replace(/\s*\(.*$/, '').replace('*', '').trim()}"`);
     const person = { kind, status: 'ATTIVO' };
-    const emp = {}; const lp = {}; let fee = null;
+    const emp = {}; const lp = {}; const fees = []; let feeVat = null; let feeDesc = '';
     for (const c of cols) {
       let v = vals[c.key];
       if (v === '' && !c.req) continue;
@@ -139,7 +145,9 @@ export async function readBulk(buffer, kind) {
       if (c.target === 'person') person[c.key] = v;
       else if (c.target === 'employment') emp[c.key] = v;
       else if (c.target === 'lp') lp[c.key] = v;
-      else if (c.target === 'fee') { if (v != null && v > 0) fee = fee || (c.key === 'fee_monthly' ? { type: 'FISSO', description: 'Compenso mensile', amount: v } : { type: 'ORARIO', description: 'Compenso orario', amount: v }); }
+      else if (c.target === 'fee') { if (v != null && v > 0) fees.push({ ...c.fee, amount: v }); }
+      else if (c.target === 'feedesc') feeDesc = v;
+      else if (c.target === 'vat') { const t = v.toUpperCase().replace(/\s+/g, ' ').trim(); if (/^(CON|CON IVA|SI|SÌ|S)$/.test(t)) feeVat = 'CON'; else if (/^(SENZA|SENZA IVA|NO|N|ESENTE)$/.test(t)) feeVat = 'SENZA'; else if (v) err(`"IVA sui compensi" deve essere "Con IVA" o "Senza IVA" (${v})`); }
       else if (c.target === 'area') { const a = await one('SELECT id FROM areas WHERE lower(name)=lower($1)', [v]); if (!a) err(`area "${v}" inesistente: crearla in Impostazioni o correggere il nome`); else person.area_id = a.id; }
       else if (c.target === 'manager') { const m = await one(`SELECT id FROM resources WHERE lower(last_name || ' ' || first_name)=lower($1) OR lower(first_name || ' ' || last_name)=lower($1)`, [v]); if (!m) err(`responsabile "${v}" non trovato tra le risorse`); else person.manager_id = m.id; }
     }
@@ -149,7 +157,9 @@ export async function readBulk(buffer, kind) {
       if (!emp.start_date && person.hired_at) emp.start_date = person.hired_at;
       if (emp.mbo_amount) emp.mbo_enabled = true;
     } else {
-      if (fee) lp.fees = [fee];
+      if (!fees.length) err('manca il compenso: indicare almeno uno tra fisso mensile, a prestazione, a ore, variabile sul fatturato');
+      for (const f of fees) { f.vat = feeVat; if (f.type === 'PRESTAZIONE' && feeDesc) f.description = feeDesc; }
+      lp.fees = fees;
     }
     rows.push({ line: n, person, employment: kind !== 'LP' ? emp : null, lp: kind === 'LP' ? lp : null });
   }
