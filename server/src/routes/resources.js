@@ -3,11 +3,12 @@ import crypto from 'node:crypto';
 import multer from 'multer';
 import { z } from 'zod';
 import { one, many, q, tx } from '../db.js';
-import { ah, bad, notFound, audit, parse } from '../lib/util.js';
+import { ah, bad, notFound, audit, parse, HttpError } from '../lib/util.js';
 import { requireWrite, requireRole, Params } from '../lib/access.js';
 import { config } from '../config.js';
 import { parseDocument, ocrAvailable } from '../lib/contractParse.js';
 import { buildTemplate, readBulk } from '../lib/bulkImport.js';
+import { analyzeAttachment } from '../lib/docAnalyze.js';
 import { getSettings, decompose, decomposeDirigente, costCoefficient, companyCost, minimumFor, ralAt } from '../lib/payroll.js';
 import { computeDeadlines, missingDocuments } from '../lib/deadlines.js';
 import { CATEGORY_LABELS } from '../lib/seedData.js';
@@ -426,6 +427,42 @@ r.delete('/:id', requireRole('ADMIN'), ah(async (req, res) => {
 }));
 
 // ---------------- Dossier: allegati ----------------
+/** Contesto per la lettura automatica: etichetta della categoria, periodicità, intestatario atteso. */
+async function analysisContext(id, category) {
+  const r = await one('SELECT kind, first_name, last_name FROM resources WHERE id=$1', [id]);
+  const req_ = r ? await one('SELECT label, renew_months FROM dossier_requirements WHERE kind=$1 AND category=$2', [r.kind, category]) : null;
+  return { label: req_?.label || category, renewMonths: req_?.renew_months || null, personName: r ? `${r.first_name} ${r.last_name}` : null };
+}
+
+/** Legge un file prima del caricamento e propone firmato, data di rilascio e scadenza (non salva nulla). */
+r.post('/:id/attachments/analyze', requireWrite, upload.single('file'), ah(async (req, res) => {
+  const id = Number(req.params.id);
+  if (!req.file) throw bad('File mancante');
+  const category = String(req.body.category || 'ALTRO');
+  const ctx = await analysisContext(id, category);
+  const filename = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+  try {
+    const r = await analyzeAttachment({ buffer: req.file.buffer, mime: req.file.mimetype, filename, category, ...ctx });
+    res.json(r);
+  } catch (e) { throw new HttpError(e.status || 424, e.message); }
+}));
+
+/** Rilegge un allegato già nel dossier; con apply=1 compila i campi vuoti. */
+r.post('/:id/attachments/:aid/analyze', requireWrite, ah(async (req, res) => {
+  const id = Number(req.params.id), aid = Number(req.params.aid);
+  const a = await one('SELECT * FROM attachments WHERE id=$1 AND resource_id=$2', [aid, id]);
+  if (!a) throw notFound();
+  const ctx = await analysisContext(id, a.category);
+  let r;
+  try { r = await analyzeAttachment({ buffer: a.data, mime: a.mime, filename: a.filename, category: a.category, ...ctx }); } catch (e) { throw new HttpError(e.status || 424, e.message); }
+  if (req.body?.apply) {
+    await q(`UPDATE attachments SET issued_at=coalesce(issued_at,$2), expires_at=coalesce(expires_at,$3), signed=CASE WHEN signed THEN TRUE ELSE coalesce($4, signed) END,
+      notes=CASE WHEN coalesce(notes,'')='' THEN $5 ELSE notes END WHERE id=$1`, [aid, r.issued_at, r.expires_at, r.signed, r.notes ? `Lettura automatica: ${r.notes}`.slice(0, 500) : null]);
+    await audit(req, 'ATTACHMENT_ANALYZE', 'attachment', aid, { method: r.method, issued_at: r.issued_at, expires_at: r.expires_at, signed: r.signed });
+  }
+  res.json(r);
+}));
+
 r.post('/:id/attachments', requireWrite, upload.single('file'), ah(async (req, res) => {
   const id = Number(req.params.id);
   if (!await one('SELECT 1 FROM resources WHERE id=$1', [id])) throw notFound();
@@ -433,11 +470,22 @@ r.post('/:id/attachments', requireWrite, upload.single('file'), ah(async (req, r
   const d = parse(z.object({ category: z.string().min(2).max(40), issued_at: optDate(), expires_at: optDate(), signed: z.preprocess((v) => v === 'true' || v === true, z.boolean()).default(false), notes: opt(z.string().max(500)), set_cv: z.preprocess((v) => v === 'true' || v === true, z.boolean()).default(false) }), req.body);
   const sha = crypto.createHash('sha256').update(req.file.buffer).digest('hex');
   const filename = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+  let auto = null;
+  if (req.body.auto === '1' && (!d.issued_at || !d.expires_at || !d.signed)) {
+    try {
+      const ctx = await analysisContext(id, d.category);
+      auto = await analyzeAttachment({ buffer: req.file.buffer, mime: req.file.mimetype, filename, category: d.category, ...ctx });
+      if (!d.issued_at && auto.issued_at) d.issued_at = auto.issued_at;
+      if (!d.expires_at && auto.expires_at) d.expires_at = auto.expires_at;
+      if (!d.signed && auto.signed === true) d.signed = true;
+      if (!d.notes && auto.notes) d.notes = `Lettura automatica: ${auto.notes}`.slice(0, 500);
+    } catch (e) { console.error('[doc] lettura automatica non riuscita:', e.message); auto = { error: e.message }; }
+  }
   const row = await one(`INSERT INTO attachments (resource_id, category, filename, mime, size, data, sha256, issued_at, expires_at, signed, notes, uploaded_by)
     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`, [id, d.category, filename, req.file.mimetype, req.file.size, req.file.buffer, sha, d.issued_at, d.expires_at, d.signed, d.notes, req.user.id]);
   if (d.set_cv || d.category === 'CV') await q('UPDATE resources SET cv_attachment_id=$2 WHERE id=$1', [id, row.id]);
-  await audit(req, 'ATTACHMENT_UPLOAD', 'attachment', row.id, { resource_id: id, category: d.category, filename });
-  res.status(201).json({ id: row.id });
+  await audit(req, 'ATTACHMENT_UPLOAD', 'attachment', row.id, { resource_id: id, category: d.category, filename, auto: auto ? { method: auto.method, issued_at: auto.issued_at, expires_at: auto.expires_at, signed: auto.signed } : null });
+  res.status(201).json({ id: row.id, auto });
 }));
 
 r.put('/:id/attachments/:aid', requireWrite, ah(async (req, res) => {

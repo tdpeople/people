@@ -275,29 +275,58 @@ function EditLp({ id, lp, onClose, onSaved }) {
   return <Modal title="Incarico professionale" onClose={onClose} wide footer={<><button className="btn ghost" onClick={onClose}>Annulla</button><button className="btn" onClick={save}>Salva</button></>}><ErrorBox error={err} /><LpForm value={v} onChange={setV} /><div className="form-grid" style={{ marginTop: 12 }}><Field label="Data del contratto"><input type="date" value={v.letter_date || ''} onChange={(ev) => setV({ ...v, letter_date: ev.target.value })} /></Field></div></Modal>;
 }
 
+const fmtRead = (r) => r ? [r.doc_type ? `riconosciuto: ${r.doc_type}` : null, r.signed === true ? 'firmato' : r.signed === false ? 'non firmato' : 'firma non determinabile', r.issued_at ? `rilascio ${itDate(r.issued_at)}` : 'data di rilascio non trovata', r.expires_at ? `scadenza ${itDate(r.expires_at)}` : 'nessuna scadenza', r.holder ? `intestatario ${r.holder}` : null, r.mismatch ? 'ATTENZIONE: il documento non sembra corrispondere alla categoria o alla persona' : null].filter(Boolean).join(' · ') + (r.method === 'euristica' ? ' (lettura senza API Claude: solo date nel testo)' : '') : '';
+
 function UploadModal({ id, cats, onClose, onSaved }) {
   const [f, setF] = useState({ category: cats[0]?.value || 'ALTRO', issued_at: '', expires_at: '', signed: false, notes: '' });
   const [files, setFiles] = useState([]);
   const [err, setErr] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [reading, setReading] = useState(false);
+  const [read, setRead] = useState(null);
+  // Lettura automatica del primo file: firmato, data di rilascio, scadenza (modificabili prima del salvataggio)
+  const analyze = async (list, category) => {
+    const file = list[0]; if (!file) return;
+    setReading(true); setRead(null);
+    try {
+      const fd = new FormData(); fd.append('file', file); fd.append('category', category);
+      const r = await api.upload(`/resources/${id}/attachments/analyze`, fd);
+      setRead(r);
+      setF((cur) => ({ ...cur, issued_at: cur.issued_at || r.issued_at || '', expires_at: cur.expires_at || r.expires_at || '', signed: cur.signed || r.signed === true, notes: cur.notes || (r.notes ? `Lettura automatica: ${r.notes}` : '') }));
+    } catch (e) { setRead({ error: e.message }); }
+    setReading(false);
+  };
+  const onFiles = (list) => { setFiles(list); setF((cur) => ({ ...cur, issued_at: '', expires_at: '', signed: false, notes: '' })); if (list.length) analyze(list, f.category); };
   const save = async () => {
     if (!files.length) return setErr(new Error('Seleziona almeno un file'));
     setBusy(true); setErr(null);
     try {
-      for (const file of files) { const fd = new FormData(); fd.append('file', file); for (const [k, v] of Object.entries(f)) fd.append(k, v); await api.upload(`/resources/${id}/attachments`, fd); }
+      let i = 0;
+      for (const file of files) {
+        const fd = new FormData(); fd.append('file', file);
+        // il primo file usa i campi del modulo (già proposti dalla lettura); gli altri vengono letti uno per uno dal server
+        const vals = i === 0 ? f : { category: f.category, issued_at: '', expires_at: '', signed: false, notes: '' };
+        for (const [k, v] of Object.entries(vals)) fd.append(k, v);
+        if (i > 0) fd.append('auto', '1');
+        await api.upload(`/resources/${id}/attachments`, fd); i++;
+      }
       onSaved();
     } catch (e) { setErr(e); }
     setBusy(false);
   };
-  return <Modal title="Carica allegato nel dossier" onClose={onClose} footer={<><button className="btn ghost" onClick={onClose}>Annulla</button><button className="btn" disabled={busy} onClick={save}>{busy ? 'Caricamento…' : 'Carica'}</button></>}>
+  return <Modal title="Carica allegato nel dossier" onClose={onClose} footer={<><button className="btn ghost" onClick={onClose}>Annulla</button><button className="btn" disabled={busy || reading} onClick={save}>{busy ? 'Caricamento…' : 'Carica'}</button></>}>
     <ErrorBox error={err} />
     <div className="form-grid">
-      <Field label="File (PDF, immagini, Office, zip)" className="span2"><input type="file" multiple onChange={(e) => setFiles([...e.target.files])} /></Field>
-      <Field label="Categoria"><select value={f.category} onChange={(e) => setF({ ...f, category: e.target.value })}>{cats.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}</select></Field>
+      <Field label="File (PDF, immagini, Office, zip)" className="span2"><input type="file" multiple onChange={(e) => onFiles([...e.target.files])} /></Field>
+      <Field label="Categoria"><select value={f.category} onChange={(e) => { setF({ ...f, category: e.target.value }); if (files.length) analyze(files, e.target.value); }}>{cats.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}</select></Field>
       <Field label="Firmato" className="inline"><input type="checkbox" checked={f.signed} onChange={(e) => setF({ ...f, signed: e.target.checked })} /> documento sottoscritto</Field>
       <Field label="Data rilascio"><input type="date" value={f.issued_at} onChange={(e) => setF({ ...f, issued_at: e.target.value })} /></Field>
       <Field label="Scadenza" help="Alimenta il calendario delle scadenze"><input type="date" value={f.expires_at} onChange={(e) => setF({ ...f, expires_at: e.target.value })} /></Field>
       <Field label="Note" className="span2"><input value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} /></Field>
+    </div>
+    <div className="small muted" style={{ marginTop: 10 }}>
+      {reading ? 'Lettura del documento in corso…' : read?.error ? <span style={{ color: '#b42318' }}>Lettura automatica non riuscita: {read.error}</span> : read ? <span>Letto dal documento: {fmtRead(read)}. Controlla e correggi prima di caricare.</span> : 'Scegliendo il file, firma, data di rilascio e scadenza vengono letti dal documento e proposti qui.'}
+      {files.length > 1 && <div>Gli altri {files.length - 1} file verranno letti uno per uno al caricamento.</div>}
     </div>
   </Modal>;
 }
@@ -305,9 +334,18 @@ function UploadModal({ id, cats, onClose, onSaved }) {
 function EditAttachment({ id, a, cats, onClose, onSaved }) {
   const [f, setF] = useState({ category: a.category, issued_at: a.issued_at ? String(a.issued_at).slice(0, 10) : '', expires_at: a.expires_at ? String(a.expires_at).slice(0, 10) : '', signed: a.signed, notes: a.notes || '' });
   const [err, setErr] = useState(null);
+  const [reading, setReading] = useState(false);
+  const [read, setRead] = useState(null);
   const save = async () => { try { await api.put(`/resources/${id}/attachments/${a.id}`, { ...f, issued_at: f.issued_at || null, expires_at: f.expires_at || null }); onSaved(); } catch (e) { setErr(e); } };
-  return <Modal title={a.filename} onClose={onClose} footer={<><button className="btn ghost" onClick={onClose}>Annulla</button><button className="btn" onClick={save}>Salva</button></>}>
+  const analyze = async () => {
+    setReading(true); setRead(null);
+    try { const r = await api.post(`/resources/${id}/attachments/${a.id}/analyze`, {}); setRead(r); setF((cur) => ({ ...cur, issued_at: r.issued_at || cur.issued_at, expires_at: r.expires_at || cur.expires_at, signed: cur.signed || r.signed === true, notes: cur.notes || (r.notes ? `Lettura automatica: ${r.notes}` : '') })); }
+    catch (e) { setRead({ error: e.message }); }
+    setReading(false);
+  };
+  return <Modal title={a.filename} onClose={onClose} footer={<><button className="btn ghost" disabled={reading} onClick={analyze}>{reading ? 'Lettura…' : 'Leggi dal documento'}</button><button className="btn ghost" onClick={onClose}>Annulla</button><button className="btn" onClick={save}>Salva</button></>}>
     <ErrorBox error={err} />
+    {read && <div className="small muted" style={{ marginBottom: 10 }}>{read.error ? <span style={{ color: '#b42318' }}>Lettura non riuscita: {read.error}</span> : <>Letto dal documento: {fmtRead(read)}. I campi sono stati aggiornati: controlla e salva.</>}</div>}
     <div className="form-grid">
       <Field label="Categoria"><select value={f.category} onChange={(e) => setF({ ...f, category: e.target.value })}>{cats.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}</select></Field>
       <Field label="Firmato" className="inline"><input type="checkbox" checked={f.signed} onChange={(e) => setF({ ...f, signed: e.target.checked })} /> documento sottoscritto</Field>
