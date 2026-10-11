@@ -10,7 +10,7 @@ import { config } from '../config.js';
 import { pdfAvailable } from '../lib/docgen.js';
 
 const r = Router();
-const opt = (s) => s.optional().nullable().transform((v) => (v === '' ? null : v));
+const opt = (s) => z.preprocess((v) => (v === '' || v === 'null' || v === 'undefined' ? null : v), s.optional().nullable()); // stringa vuota (form multipart) = assente
 
 // ---------------- Utenti ----------------
 const USER_COLS = 'id, email, full_name, role, auth_provider, must_change_password, totp_enabled, active, last_login_at, created_at';

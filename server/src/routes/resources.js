@@ -15,7 +15,7 @@ import { CATEGORY_LABELS } from '../lib/seedData.js';
 
 const r = Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: config.maxUploadMb * 1024 * 1024 } });
-const opt = (s) => s.optional().nullable().transform((v) => (v === '' ? null : v));
+const opt = (s) => z.preprocess((v) => (v === '' || v === 'null' || v === 'undefined' ? null : v), s.optional().nullable()); // stringa vuota (form multipart) = assente
 const dateRe = /^\d{4}-\d{2}-\d{2}$/;
 const optDate = () => opt(z.string().regex(dateRe, 'data non valida (AAAA-MM-GG)'));
 const num = () => z.preprocess((v) => (v === '' || v == null ? null : Number(v)), z.number().nullable());
