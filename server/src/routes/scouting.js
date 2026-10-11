@@ -17,7 +17,7 @@ const optDate = () => opt(z.string().regex(dateRe, 'data non valida'));
 const num = () => z.preprocess((v) => (v === '' || v == null ? null : Number(v)), z.number().nullable());
 
 // ---------------- CV Box ----------------
-const CV_COLS = 'c.id, c.last_name, c.first_name, c.email, c.phone, c.area_id, a.name AS area_name, c.role_target, c.summary, c.rating, c.status, c.source, c.filename, c.mime, c.size, c.resource_id, c.received_at, c.created_at, c.updated_at';
+const CV_COLS = 'c.id, c.last_name, c.first_name, c.email, c.phone, c.area_id, a.name AS area_name, c.role_target, c.summary, c.interview_notes, c.rating, c.status, c.source, c.filename, c.mime, c.size, c.resource_id, c.received_at, c.created_at, c.updated_at';
 
 r.get('/cv', ah(async (req, res) => {
   const w = ['TRUE']; const P = [];
@@ -29,7 +29,7 @@ r.get('/cv', ah(async (req, res) => {
 
 const cvSchema = z.object({
   last_name: opt(z.string().max(100)), first_name: opt(z.string().max(100)), email: opt(z.string().max(160)), phone: opt(z.string().max(40)),
-  area_id: num(), role_target: opt(z.string().max(160)), summary: opt(z.string().max(6000)), rating: num(),
+  area_id: num(), role_target: opt(z.string().max(160)), summary: opt(z.string().max(6000)), interview_notes: opt(z.string().max(8000)), rating: num(),
   status: z.enum(['NUOVO', 'IN_VALUTAZIONE', 'COLLOQUIO', 'IN_ATTESA', 'SCARTATO', 'CONVERTITO']).optional(), source: opt(z.string().max(120)), received_at: optDate(),
 });
 

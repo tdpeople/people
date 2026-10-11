@@ -69,7 +69,7 @@ function CvEditor({ c, areas, writer, onSave }) {
   const [v, setV] = useState(c);
   const [err, setErr] = useState(null);
   React.useEffect(() => setV(c), [c]);
-  const save = async () => { try { setErr(null); await onSave({ last_name: v.last_name, first_name: v.first_name, email: v.email, phone: v.phone, area_id: v.area_id || null, role_target: v.role_target, summary: v.summary, rating: v.rating || null, status: v.status, source: v.source }); } catch (e) { setErr(e); } };
+  const save = async () => { try { setErr(null); await onSave({ last_name: v.last_name, first_name: v.first_name, email: v.email, phone: v.phone, area_id: v.area_id || null, role_target: v.role_target, summary: v.summary, interview_notes: v.interview_notes || null, rating: v.rating || null, status: v.status, source: v.source }); } catch (e) { setErr(e); } };
   const s = (k, x) => setV({ ...v, [k]: x });
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -86,6 +86,7 @@ function CvEditor({ c, areas, writer, onSave }) {
         <Field label="Fonte"><input value={v.source || ''} onChange={(e) => s('source', e.target.value)} disabled={!writer} placeholder="es. LinkedIn, candidatura spontanea, segnalazione" /></Field>
       </div>
       <Field label="Sintesi del profilo"><textarea value={v.summary || ''} onChange={(e) => s('summary', e.target.value)} disabled={!writer} style={{ minHeight: 160 }} /></Field>
+      <Field label="Note dal colloquio" help="Campo libero: impressioni, disponibilità, aspettative economiche, esito"><textarea value={v.interview_notes || ''} onChange={(e) => s('interview_notes', e.target.value)} disabled={!writer} style={{ minHeight: 120 }} placeholder="es. Colloquio del 11/10 con Zezza: ..." /></Field>
       {writer && <div><button className="btn" onClick={save}>Salva</button></div>}
     </div>
   );
