@@ -40,6 +40,8 @@ services:
         sync: false
       - key: ENTRA_CLIENT_SECRET
         sync: false
+      - key: ANTHROPIC_MODEL
+        value: claude-sonnet-5-5   # modello per sintesi CV e lettura contratti; aggiornare quando Anthropic ritira il modello
       - key: ANTHROPIC_API_KEY
         sync: false   # facoltativa: sintesi automatica dei CV nel CV Box
 databases:

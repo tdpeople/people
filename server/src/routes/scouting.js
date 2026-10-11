@@ -2,7 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import { z } from 'zod';
 import { one, many, q, tx } from '../db.js';
-import { ah, bad, notFound, audit, parse } from '../lib/util.js';
+import { ah, bad, notFound, audit, parse, HttpError } from '../lib/util.js';
 import { requireWrite, requireRole } from '../lib/access.js';
 import { config } from '../config.js';
 import { extractText, quickFacts, summarizeCv } from '../lib/cv.js';
@@ -35,14 +35,14 @@ const cvSchema = z.object({
 
 r.post('/cv', requireWrite, upload.single('file'), ah(async (req, res) => {
   const d = parse(cvSchema, req.body);
-  let text = ''; let ai = null; let facts = {};
+  let text = ''; let ai = null; let facts = {}; let aiError = null;
   const file = req.file || null;
   const filename = file ? Buffer.from(file.originalname, 'latin1').toString('utf8') : null;
   if (file) {
-    text = await extractText(file.buffer, file.mimetype);
+    text = await extractText(file.buffer, file.mimetype, filename);
     facts = quickFacts(text);
     if (req.body.analyze !== 'false' && config.anthropicKey) {
-      try { ai = await summarizeCv(text, (await many('SELECT name FROM areas WHERE active ORDER BY sort_order')).map((a) => a.name)); } catch (e) { console.error('[cv] sintesi AI non riuscita:', e.message); }
+      try { ai = await summarizeCv(text, (await many('SELECT name FROM areas WHERE active ORDER BY sort_order')).map((a) => a.name)); } catch (e) { console.error('[cv] sintesi AI non riuscita:', e.message); aiError = e.message; }
     }
   }
   let areaId = d.area_id;
@@ -52,7 +52,7 @@ r.post('/cv', requireWrite, upload.single('file'), ah(async (req, res) => {
     [d.last_name || ai?.last_name || null, d.first_name || ai?.first_name || null, d.email || ai?.email || facts.email || null, d.phone || ai?.phone || facts.phone || null, areaId,
       d.role_target || ai?.role_target || null, d.summary || ai?.summary || null, d.rating || ai?.rating || null, d.status || 'NUOVO', d.source, filename, file?.mimetype || null, file?.size || null, file?.buffer || null, text.slice(0, 4000) || null, d.received_at, req.user.id]);
   await audit(req, 'CV_UPLOAD', 'cv', row.id, { filename });
-  res.status(201).json({ id: row.id, ai_used: Boolean(ai) });
+  res.status(201).json({ id: row.id, ai_used: Boolean(ai), ai_error: aiError });
 }));
 
 r.put('/cv/:id', requireWrite, ah(async (req, res) => {
@@ -63,12 +63,13 @@ r.put('/cv/:id', requireWrite, ah(async (req, res) => {
 }));
 
 r.post('/cv/:id/analyze', requireWrite, ah(async (req, res) => {
-  const c = await one('SELECT data, mime, text_excerpt FROM cv_box WHERE id=$1', [Number(req.params.id)]);
+  const c = await one('SELECT data, mime, filename, text_excerpt FROM cv_box WHERE id=$1', [Number(req.params.id)]);
   if (!c) throw notFound();
   if (!config.anthropicKey) throw bad('Analisi automatica non configurata (ANTHROPIC_API_KEY mancante)');
-  const text = c.data ? await extractText(c.data, c.mime) : c.text_excerpt;
-  const ai = await summarizeCv(text, (await many('SELECT name FROM areas WHERE active ORDER BY sort_order')).map((a) => a.name));
-  if (!ai) throw bad('Nessuna sintesi prodotta');
+  const text = c.data ? await extractText(c.data, c.mime, c.filename || '') : c.text_excerpt;
+  let ai;
+  try { ai = await summarizeCv(text, (await many('SELECT name FROM areas WHERE active ORDER BY sort_order')).map((a) => a.name)); } catch (e) { throw new HttpError(e.status || 424, e.message); }
+  if (!ai) throw bad('Il modello non ha restituito una sintesi leggibile: riprova');
   const areaId = ai.area ? (await one('SELECT id FROM areas WHERE lower(name)=lower($1)', [ai.area]))?.id || null : null;
   await q(`UPDATE cv_box SET summary=coalesce($2, summary), role_target=coalesce($3, role_target), rating=coalesce($4, rating), area_id=coalesce($5, area_id),
     last_name=coalesce(last_name,$6), first_name=coalesce(first_name,$7), email=coalesce(email,$8), phone=coalesce(phone,$9), updated_at=now() WHERE id=$1`,

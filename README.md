@@ -60,7 +60,7 @@ Serve un Global Administrator del tenant.
 
 ## Sintesi automatica dei CV (facoltativa)
 
-Con ANTHROPIC_API_KEY impostata, al caricamento di un CV in PDF l'app estrae il testo e propone nome, contatti, ruolo, area, valutazione e sintesi del profilo (modificabili). Senza chiave la sintesi si scrive a mano. Il testo del CV viene inviato all'API Anthropic: valutare l'informativa privacy ai candidati.
+Con ANTHROPIC_API_KEY impostata, al caricamento di un CV (PDF con testo, PDF scansionato via OCR, DOCX, TXT) l'app estrae il testo e propone nome, contatti, ruolo, area, valutazione e sintesi del profilo (modificabili). Senza chiave la sintesi si scrive a mano. Il modello si sceglie con ANTHROPIC_MODEL (predefinito claude-sonnet-5-5): se Anthropic lo ritira, l'app segnala l'errore 404 con l'indicazione di aggiornare la variabile su Render. Gli errori dell'API (chiave non valida, modello non disponibile, credito esaurito) vengono mostrati in chiaro nel CV Box. Il testo del CV viene inviato all'API Anthropic: valutare l'informativa privacy ai candidati.
 
 ## Sviluppo locale
 

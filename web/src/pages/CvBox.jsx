@@ -59,7 +59,7 @@ export default function CvBox() {
           </Card>
         )}
       </div>
-      {modal === 'upload' && <UploadCv areas={areas.data || []} onClose={() => setModal(null)} onSaved={(r) => { setModal(null); list.reload(); toast(r.ai_used ? 'CV caricato e sintesi generata' : 'CV caricato'); }} />}
+      {modal === 'upload' && <UploadCv areas={areas.data || []} onClose={() => setModal(null)} onSaved={(r) => { setModal(null); list.reload(); toast(r.ai_used ? 'CV caricato e sintesi generata' : r.ai_error ? `CV caricato, sintesi non riuscita: ${r.ai_error}` : 'CV caricato', r.ai_error ? 'err' : undefined); }} />}
       {modal?.del && <ConfirmModal danger title="Elimina CV" text="Eliminare il CV dall'archivio?" confirmText="Elimina" onClose={() => setModal(null)} onConfirm={async () => { await api.del(`/scouting/cv/${modal.del.id}`); setSel(null); list.reload(); }} />}
     </div>
   );

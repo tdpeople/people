@@ -13,7 +13,7 @@ export const config = {
   maxPackMb: Number(env.MAX_PACK_MB || 600),
   sofficeBin: env.SOFFICE_BIN || 'soffice',
   anthropicKey: env.ANTHROPIC_API_KEY || '',
-  anthropicModel: env.ANTHROPIC_MODEL || 'claude-sonnet-4-5',
+  anthropicModel: env.ANTHROPIC_MODEL || 'claude-sonnet-5-5',
   entra: {
     tenantId: env.ENTRA_TENANT_ID || '',
     clientId: env.ENTRA_CLIENT_ID || '',
